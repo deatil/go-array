@@ -5,13 +5,6 @@ import (
     "strings"
 )
 
-// 构造函数
-func New() Arr {
-    return Arr{
-        keyDelim: ".",
-    }
-}
-
 /**
  * 获取数组数据
  *
@@ -28,6 +21,15 @@ func (this Arr) WithKeyDelim(data string) Arr {
     this.keyDelim = data
 
     return this
+}
+
+// 判断是否存在
+func (this Arr) Exists(source map[string]any, key string) bool {
+    if this.Find(source, key) != nil {
+        return true
+    }
+
+    return false
 }
 
 // 获取
@@ -201,4 +203,16 @@ func (this Arr) isPathShadowedInDeepMap(path []string, m map[string]any) string 
     }
 
     return ""
+}
+
+// 构造函数
+func NewArr() Arr {
+    return Arr{
+        keyDelim: ".",
+    }
+}
+
+// 构造函数
+func New() Arr {
+    return NewArr()
 }
