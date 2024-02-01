@@ -32,14 +32,22 @@ func toString(i any) string {
 	i = indirectToStringerOrError(i)
 
 	switch s := i.(type) {
+	case []byte:
+		return string(s)
 	case string:
 		return s
 	case bool:
 		return strconv.FormatBool(s)
+	}
+
+	switch s := i.(type) {
 	case float64:
 		return strconv.FormatFloat(s, 'f', -1, 64)
 	case float32:
 		return strconv.FormatFloat(float64(s), 'f', -1, 32)
+	}
+
+	switch s := i.(type) {
 	case int:
 		return strconv.Itoa(s)
 	case int64:
@@ -50,6 +58,9 @@ func toString(i any) string {
 		return strconv.FormatInt(int64(s), 10)
 	case int8:
 		return strconv.FormatInt(int64(s), 10)
+	}
+
+	switch s := i.(type) {
 	case uint:
 		return strconv.FormatUint(uint64(s), 10)
 	case uint64:
@@ -60,8 +71,9 @@ func toString(i any) string {
 		return strconv.FormatUint(uint64(s), 10)
 	case uint8:
 		return strconv.FormatUint(uint64(s), 10)
-	case []byte:
-		return string(s)
+	}
+
+	switch s := i.(type) {
 	case template.HTML:
 		return string(s)
 	case template.URL:
@@ -72,6 +84,9 @@ func toString(i any) string {
 		return string(s)
 	case template.HTMLAttr:
 		return string(s)
+	}
+
+	switch s := i.(type) {
 	case nil:
 		return ""
 	case fmt.Stringer:

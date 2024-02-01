@@ -1,12 +1,11 @@
 package array
 
 import (
+	"encoding/json"
 	"reflect"
 	"strconv"
 	"strings"
 )
-
-var defaultArray = New()
 
 /**
  * 获取数组数据 / array struct
@@ -17,18 +16,25 @@ var defaultArray = New()
 type Array struct {
 	// 分隔符 / key Delim
 	keyDelim string
+
+	// 原始数据 / source data
+	source any
 }
 
-// 构造函数 / NewArray
-func NewArray() Array {
+// 构造函数 / New
+func New(source any) Array {
 	return Array{
 		keyDelim: ".",
+		source:   source,
 	}
 }
 
-// 构造函数 / New array
-func New() Array {
-	return NewArray()
+// 解析 JSON 数据 / parse json data
+func ParseJSON(source []byte) (Array, error) {
+	var dst any
+	err := json.Unmarshal(source, &dst)
+
+	return New(dst), err
 }
 
 // 设置 keyDelim
@@ -41,8 +47,8 @@ func (this Array) WithKeyDelim(data string) Array {
 
 // 判断是否存在
 // if key in source return true or false
-func (this Array) Exists(source any, key string) bool {
-	if this.Find(source, key) != nil {
+func (this Array) Exists(key string) bool {
+	if this.Find(key) != nil {
 		return true
 	}
 
@@ -52,13 +58,13 @@ func (this Array) Exists(source any, key string) bool {
 // 判断是否存在
 // if key in source return true or false
 func Exists(source any, key string) bool {
-	return defaultArray.Exists(source, key)
+	return New(source).Exists(key)
 }
 
 // 获取
 // get key data from source with default value
-func (this Array) Get(source any, key string, defVal ...any) any {
-	data := this.Find(source, key)
+func (this Array) Get(key string, defVal ...any) any {
+	data := this.Find(key)
 	if data != nil {
 		return data
 	}
@@ -73,16 +79,39 @@ func (this Array) Get(source any, key string, defVal ...any) any {
 // 获取
 // get key data from source with default value
 func Get(source any, key string, defVal ...any) any {
-	return defaultArray.Get(source, key, defVal...)
+	return New(source).Get(key, defVal...)
 }
 
 // 查找
 // find key data from source
-func (this Array) Find(source any, key string) any {
-	var (
-		val  any
-		path = strings.Split(key, this.keyDelim)
-	)
+func (this Array) Find(key string) any {
+	path := strings.Split(key, this.keyDelim)
+
+	return this.Search(path...)
+}
+
+// 查找
+// find key data from source
+func Find(source any, key string) any {
+	return New(source).Find(key)
+}
+
+// 搜索
+// Search data with key from source
+func (this Array) Search(path ...string) any {
+	return this.search(this.source, path...)
+}
+
+// 搜索
+// Search data with key from source
+func Search(source any, path ...string) any {
+	return New(source).Search(path...)
+}
+
+// 搜索
+// Search data with key from source
+func (this Array) search(source any, path ...string) any {
+	var val any
 
 	newSource, isMap := this.anyDataMapFormat(source)
 	if isMap {
@@ -103,12 +132,6 @@ func (this Array) Find(source any, key string) any {
 	}
 
 	return nil
-}
-
-// 查找
-// find key data from source
-func Find(source any, key string) any {
-	return defaultArray.Find(source, key)
 }
 
 // 数组
@@ -219,7 +242,7 @@ func (this Array) searchMapWithPathPrefixes(
 	return nil
 }
 
-func (this Array) IsPathShadowedInDeepMap(path []string, m map[string]any) string {
+func (this Array) isPathShadowedInDeepMap(path []string, m map[string]any) string {
 	var parentVal any
 
 	for i := 1; i < len(path); i++ {
