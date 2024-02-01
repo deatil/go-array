@@ -31,6 +31,11 @@ func toStringMap(i any) map[string]any {
 func toString(i any) string {
 	i = indirectToStringerOrError(i)
 
+	res, ok := toIntString(i)
+	if ok {
+		return res
+	}
+
 	switch s := i.(type) {
 	case []byte:
 		return string(s)
@@ -38,42 +43,6 @@ func toString(i any) string {
 		return s
 	case bool:
 		return strconv.FormatBool(s)
-	}
-
-	switch s := i.(type) {
-	case float64:
-		return strconv.FormatFloat(s, 'f', -1, 64)
-	case float32:
-		return strconv.FormatFloat(float64(s), 'f', -1, 32)
-	}
-
-	switch s := i.(type) {
-	case int:
-		return strconv.Itoa(s)
-	case int64:
-		return strconv.FormatInt(s, 10)
-	case int32:
-		return strconv.Itoa(int(s))
-	case int16:
-		return strconv.FormatInt(int64(s), 10)
-	case int8:
-		return strconv.FormatInt(int64(s), 10)
-	}
-
-	switch s := i.(type) {
-	case uint:
-		return strconv.FormatUint(uint64(s), 10)
-	case uint64:
-		return strconv.FormatUint(uint64(s), 10)
-	case uint32:
-		return strconv.FormatUint(uint64(s), 10)
-	case uint16:
-		return strconv.FormatUint(uint64(s), 10)
-	case uint8:
-		return strconv.FormatUint(uint64(s), 10)
-	}
-
-	switch s := i.(type) {
 	case template.HTML:
 		return string(s)
 	case template.URL:
@@ -84,9 +53,6 @@ func toString(i any) string {
 		return string(s)
 	case template.HTMLAttr:
 		return string(s)
-	}
-
-	switch s := i.(type) {
 	case nil:
 		return ""
 	case fmt.Stringer:
@@ -96,6 +62,37 @@ func toString(i any) string {
 	default:
 		return ""
 	}
+}
+
+func toIntString(i any) (string, bool) {
+	switch s := i.(type) {
+	case float64:
+		return strconv.FormatFloat(s, 'f', -1, 64), true
+	case float32:
+		return strconv.FormatFloat(float64(s), 'f', -1, 32), true
+	case int:
+		return strconv.Itoa(s), true
+	case int64:
+		return strconv.FormatInt(s, 10), true
+	case int32:
+		return strconv.Itoa(int(s)), true
+	case int16:
+		return strconv.FormatInt(int64(s), 10), true
+	case int8:
+		return strconv.FormatInt(int64(s), 10), true
+	case uint:
+		return strconv.FormatUint(uint64(s), 10), true
+	case uint64:
+		return strconv.FormatUint(uint64(s), 10), true
+	case uint32:
+		return strconv.FormatUint(uint64(s), 10), true
+	case uint16:
+		return strconv.FormatUint(uint64(s), 10), true
+	case uint8:
+		return strconv.FormatUint(uint64(s), 10), true
+	}
+
+	return "", false
 }
 
 // json 转换
