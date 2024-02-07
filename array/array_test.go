@@ -529,6 +529,153 @@ func Test_ParseJSON(t *testing.T) {
 	assert(value2, expected2, "ParseJSON 2 fail")
 }
 
+func Test_Sub_And_Value(t *testing.T) {
+	assert := assertT(t)
+
+	testData := []struct {
+		key      string
+		expected string
+		msg      string
+	}{
+		{
+			"a",
+			"123",
+			"map[string]any",
+		},
+		{
+			"b.dd.1",
+			"ddddd",
+			"[]any",
+		},
+		{
+			"b.ff.222",
+			"fddddd",
+			"map[any]any",
+		},
+		{
+			"b.hhTy3.222",
+			"hddddd",
+			"&map[int]any",
+		},
+		{
+			"b.hhTy3.333.qq2",
+			"qq2ddddd",
+			"map[any]string",
+		},
+		{
+			"b.hhTy3.666.3",
+			"789.156",
+			"Slice",
+		},
+	}
+
+	for _, v := range testData {
+		check := New(arrData).Sub(v.key).Value()
+
+		assert(check, v.expected, v.msg)
+	}
+
+}
+
+func Test_Sub_And_ToJSON(t *testing.T) {
+	assert := assertT(t)
+
+	testData := []struct {
+		key      string
+		expected string
+		msg      string
+	}{
+		{
+			"b.dd",
+			`["ccccc","ddddd","fffff"]`,
+			"[]any",
+		},
+		{
+			"b.d",
+			`{"e":"eee","f":{"g":"ggg"}}`,
+			"map[any]any",
+		},
+		{
+			"b.hhTy3.333",
+			`{"qq1":"qq1ccccc","qq2":"qq2ddddd","qq3":"qq3fffff"}`,
+			"&map[int]any",
+		},
+	}
+
+	for _, v := range testData {
+		check := New(arrData).Sub(v.key).ToJSON()
+
+		assert(check, v.expected, v.msg)
+	}
+
+}
+
+func Test_Children(t *testing.T) {
+	jsonParsed, _ := ParseJSON([]byte(`{"map":{"objectOne":{"num":1},"objectTwo":{"num":2},"objectThree":{"num":3}}, "array":[ "first", "second", "third" ]}`))
+
+	expected := []string{"first", "second", "third"}
+
+	children := jsonParsed.Sub("array").Children()
+	for i, child := range children {
+		if expected[i] != child.Value().(string) {
+			t.Errorf("Child unexpected: %v != %v", expected[i], child.Value().(string))
+		}
+	}
+
+	mapChildren := jsonParsed.Sub("map").Children()
+	for key, val := range mapChildren {
+		switch key {
+		case 0:
+			if val := val.Sub("num").Value().(float64); val != 1 {
+				t.Errorf("%v != %v", val, 1)
+			}
+		case 1:
+			if val := val.Sub("num").Value().(float64); val != 2 {
+				t.Errorf("%v != %v", val, 2)
+			}
+		case 2:
+			if val := val.Sub("num").Value().(float64); val != 3 {
+				t.Errorf("%v != %v", val, 3)
+			}
+		default:
+			t.Errorf("Unexpected key: %v", key)
+		}
+	}
+}
+
+func Test_ChildrenMap(t *testing.T) {
+	json1, _ := ParseJSON([]byte(`{
+		"objectOne":{"num":1},
+		"objectTwo":{"num":2},
+		"objectThree":{"num":3}
+	}`))
+
+	objectMap := json1.ChildrenMap()
+	if len(objectMap) != 3 {
+		t.Errorf("Wrong num of elements in objectMap: %v != %v", len(objectMap), 3)
+		return
+	}
+
+	for key, val := range objectMap {
+		switch key {
+		case "objectOne":
+			if val := val.Sub("num").Value().(float64); val != 1 {
+				t.Errorf("%v != %v", val, 1)
+			}
+		case "objectTwo":
+			if val := val.Sub("num").Value().(float64); val != 2 {
+				t.Errorf("%v != %v", val, 2)
+			}
+		case "objectThree":
+			if val := val.Sub("num").Value().(float64); val != 3 {
+				t.Errorf("%v != %v", val, 3)
+			}
+		default:
+			t.Errorf("Unexpected key: %v", key)
+		}
+	}
+}
+
 func Example() {
 	Get(arrData, "b.hhTy3.666.3")
 }

@@ -108,6 +108,82 @@ func Search(source any, path ...string) any {
 	return New(source).Search(path...)
 }
 
+// 获取数据
+// get data and return Array
+func (this Array) Sub(key string) Array {
+	this.source = this.Find(key)
+
+	return this
+}
+
+// 获取数据
+// get data and return Array
+func Sub(source any, key string) Array {
+	return New(source).Sub(key)
+}
+
+func (this Array) Children() []Array {
+	source := this.anyDataFormat(this.source)
+
+	if array, ok := source.([]any); ok {
+		children := make([]Array, len(array))
+		for i := 0; i < len(array); i++ {
+			children[i] = Array{
+				keyDelim: this.keyDelim,
+				source:   array[i],
+			}
+		}
+
+		return children
+	}
+
+	if mmap, ok := source.(map[string]any); ok {
+		children := make([]Array, 0, len(mmap))
+		for _, obj := range mmap {
+			children = append(children, Array{
+				keyDelim: this.keyDelim,
+				source:   obj,
+			})
+		}
+
+		return children
+	}
+
+	return nil
+}
+
+func (this Array) ChildrenMap() map[string]Array {
+	source := this.anyDataFormat(this.source)
+
+	if mmap, ok := source.(map[string]any); ok {
+		children := make(map[string]Array, len(mmap))
+		for name, obj := range mmap {
+			children[name] = Array{
+				keyDelim: this.keyDelim,
+				source:   obj,
+			}
+		}
+
+		return children
+	}
+
+	return map[string]Array{}
+}
+
+// 返回数据
+// return source data
+func (this Array) Value() any {
+	return this.source
+}
+
+// 返回 JSON 数据
+// return JSON data
+func (this Array) ToJSON() []byte {
+	data, _ := json.Marshal(this.anyDataFormat(this.source))
+
+	return data
+}
+
 // 搜索
 // Search data with key from source
 func (this Array) search(source any, path ...string) any {
