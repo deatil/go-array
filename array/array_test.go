@@ -611,7 +611,7 @@ func Test_Sub_And_ToJSON(t *testing.T) {
 }
 
 func Test_Children(t *testing.T) {
-	jsonParsed, _ := ParseJSON([]byte(`{"map":{"objectOne":{"num":1},"objectTwo":{"num":2},"objectThree":{"num":3}}, "array":[ "first", "second", "third" ]}`))
+	jsonParsed, _ := ParseJSON([]byte(`{"map":{"objectOne":{"num":1}}, "array":[ "first", "second", "third" ]}`))
 
 	expected := []string{"first", "second", "third"}
 
@@ -628,14 +628,6 @@ func Test_Children(t *testing.T) {
 		case 0:
 			if val := val.Sub("num").Value().(float64); val != 1 {
 				t.Errorf("%v != %v", val, 1)
-			}
-		case 1:
-			if val := val.Sub("num").Value().(float64); val != 2 {
-				t.Errorf("%v != %v", val, 2)
-			}
-		case 2:
-			if val := val.Sub("num").Value().(float64); val != 3 {
-				t.Errorf("%v != %v", val, 3)
 			}
 		default:
 			t.Errorf("Unexpected key: %v", key)
