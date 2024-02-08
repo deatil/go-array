@@ -577,6 +577,54 @@ func Test_Sub_And_Value(t *testing.T) {
 
 }
 
+func Test_Sub_And_Value_func(t *testing.T) {
+	assert := assertT(t)
+
+	testData := []struct {
+		key      string
+		expected string
+		msg      string
+	}{
+		{
+			"a",
+			"123",
+			"map[string]any",
+		},
+		{
+			"b.dd.1",
+			"ddddd",
+			"[]any",
+		},
+		{
+			"b.ff.222",
+			"fddddd",
+			"map[any]any",
+		},
+		{
+			"b.hhTy3.222",
+			"hddddd",
+			"&map[int]any",
+		},
+		{
+			"b.hhTy3.333.qq2",
+			"qq2ddddd",
+			"map[any]string",
+		},
+		{
+			"b.hhTy3.666.3",
+			"789.156",
+			"Slice",
+		},
+	}
+
+	for _, v := range testData {
+		check := Sub(arrData, v.key).Value()
+
+		assert(check, v.expected, v.msg)
+	}
+
+}
+
 func Test_Sub_And_ToJSON(t *testing.T) {
 	assert := assertT(t)
 
@@ -665,6 +713,71 @@ func Test_ChildrenMap(t *testing.T) {
 		default:
 			t.Errorf("Unexpected key: %v", key)
 		}
+	}
+}
+
+func Test_Flatten(t *testing.T) {
+	assert := assertDeepEqualT(t)
+
+	json1, _ := ParseJSON([]byte(`{"foo":[{"bar":"1"},{"bar":"2"}]}`))
+
+	flattenData, err := json1.Flatten()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	check := map[string]any{
+		"foo.0.bar": "1",
+		"foo.1.bar": "2",
+	}
+
+	assert(flattenData, check, "Flatten fail")
+}
+
+func Test_FlattenIncludeEmpty(t *testing.T) {
+	assert := assertDeepEqualT(t)
+
+	json1, _ := ParseJSON([]byte(`{"foo":[{"bar":"1"},{"bar":"2"},{"bar222":{}}]}`))
+
+	flattenData, err := json1.FlattenIncludeEmpty()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	check := map[string]any{
+		"foo.0.bar":    "1",
+		"foo.1.bar":    "2",
+		"foo.2.bar222": struct{}{},
+	}
+
+	assert(flattenData, check, "FlattenIncludeEmpty fail")
+}
+
+func Test_Set(t *testing.T) {
+	gObj := New(nil)
+
+	if _, err := gObj.Set([]interface{}{}, "foo"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gObj.Set(1, "foo", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gObj.Set([]interface{}{}, "foo", "-", "baz"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gObj.Set(2, "foo", "1", "baz", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gObj.Set(3, "foo", "1", "baz", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gObj.Set(5, "foo", "-"); err != nil {
+		t.Fatal(err)
+	}
+
+	exp := `{"foo":[1,{"baz":[2,3]},5]}`
+	if act := gObj.String(); act != exp {
+		t.Errorf("Unexpected value: %v != %v", act, exp)
 	}
 }
 

@@ -2,6 +2,8 @@ package array
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,32 +24,75 @@ type Array struct {
 }
 
 // 构造函数 / New
-func New(source any) Array {
-	return Array{
+func New(source any) *Array {
+	return &Array{
 		keyDelim: ".",
 		source:   source,
 	}
 }
 
 // 解析 JSON 数据 / parse json data
-func ParseJSON(source []byte) (Array, error) {
+func ParseJSON(source []byte) (*Array, error) {
 	var dst any
 	err := json.Unmarshal(source, &dst)
 
 	return New(dst), err
 }
 
+// ParseJSONDecoder applies a json.Decoder to a *Container.
+func ParseJSONDecoder(decoder *json.Decoder) (*Array, error) {
+	var dst any
+	if err := decoder.Decode(&dst); err != nil {
+		return nil, err
+	}
+
+	return New(dst), nil
+}
+
 // 设置 keyDelim
 // with keyDelim
-func (this Array) WithKeyDelim(data string) Array {
+func (this *Array) WithKeyDelim(data string) *Array {
 	this.keyDelim = data
 
 	return this
 }
 
+// String marshals an element to a JSON formatted string.
+func (this *Array) String() string {
+	return string(this.ToJSON())
+}
+
+// 返回数据
+// return source data
+func (this *Array) Value() any {
+	return this.source
+}
+
+// 返回 JSON 数据
+// return JSON data
+func (this *Array) ToJSON() []byte {
+	if data, err := json.Marshal(this.anyDataFormat(this.source)); err == nil {
+		return data
+	}
+
+	return []byte("null")
+}
+
+// BytesIndent marshals an element to a JSON []byte blob formatted with a prefix
+// and indent string.
+func (this *Array) ToJSONIndent(prefix, indent string) []byte {
+	if this.source != nil {
+		if data, err := json.MarshalIndent(this.anyDataFormat(this.source), prefix, indent); err == nil {
+			return data
+		}
+	}
+
+	return []byte("null")
+}
+
 // 判断是否存在
 // if key in source return true or false
-func (this Array) Exists(key string) bool {
+func (this *Array) Exists(key string) bool {
 	if this.Find(key) != nil {
 		return true
 	}
@@ -63,7 +108,7 @@ func Exists(source any, key string) bool {
 
 // 获取
 // get key data from source with default value
-func (this Array) Get(key string, defVal ...any) any {
+func (this *Array) Get(key string, defVal ...any) any {
 	data := this.Find(key)
 	if data != nil {
 		return data
@@ -84,10 +129,8 @@ func Get(source any, key string, defVal ...any) any {
 
 // 查找
 // find key data from source
-func (this Array) Find(key string) any {
-	path := strings.Split(key, this.keyDelim)
-
-	return this.Search(path...)
+func (this *Array) Find(key string) any {
+	return this.Sub(key).Value()
 }
 
 // 查找
@@ -98,7 +141,7 @@ func Find(source any, key string) any {
 
 // 搜索
 // Search data with key from source
-func (this Array) Search(path ...string) any {
+func (this *Array) Search(path ...string) any {
 	return this.search(this.source, path...)
 }
 
@@ -110,25 +153,33 @@ func Search(source any, path ...string) any {
 
 // 获取数据
 // get data and return Array
-func (this Array) Sub(key string) Array {
-	this.source = this.Find(key)
+func (this *Array) Sub(key string) *Array {
+	path := strings.Split(key, this.keyDelim)
+	source := this.search(this.source, path...)
 
-	return this
+	return &Array{
+		keyDelim: this.keyDelim,
+		source:   source,
+	}
 }
 
 // 获取数据
 // get data and return Array
-func Sub(source any, key string) Array {
+func Sub(source any, key string) *Array {
 	return New(source).Sub(key)
 }
 
-func (this Array) Children() []Array {
+// Children returns a slice of all children of an array element. This also works
+// for objects, however, the children returned for an source will be in a random
+// order and you lose the names of the returned objects this way. If the
+// underlying container value isn't an array or map nil is returned.
+func (this *Array) Children() []*Array {
 	source := this.anyDataFormat(this.source)
 
 	if array, ok := source.([]any); ok {
-		children := make([]Array, len(array))
+		children := make([]*Array, len(array))
 		for i := 0; i < len(array); i++ {
-			children[i] = Array{
+			children[i] = &Array{
 				keyDelim: this.keyDelim,
 				source:   array[i],
 			}
@@ -138,9 +189,9 @@ func (this Array) Children() []Array {
 	}
 
 	if mmap, ok := source.(map[string]any); ok {
-		children := make([]Array, 0, len(mmap))
+		children := make([]*Array, 0, len(mmap))
 		for _, obj := range mmap {
-			children = append(children, Array{
+			children = append(children, &Array{
 				keyDelim: this.keyDelim,
 				source:   obj,
 			})
@@ -152,13 +203,15 @@ func (this Array) Children() []Array {
 	return nil
 }
 
-func (this Array) ChildrenMap() map[string]Array {
+// ChildrenMap returns a map of all the children of an source element. IF the
+// underlying value isn't a source then an empty map is returned.
+func (this *Array) ChildrenMap() map[string]*Array {
 	source := this.anyDataFormat(this.source)
 
 	if mmap, ok := source.(map[string]any); ok {
-		children := make(map[string]Array, len(mmap))
+		children := make(map[string]*Array, len(mmap))
 		for name, obj := range mmap {
-			children[name] = Array{
+			children[name] = &Array{
 				keyDelim: this.keyDelim,
 				source:   obj,
 			}
@@ -167,26 +220,144 @@ func (this Array) ChildrenMap() map[string]Array {
 		return children
 	}
 
-	return map[string]Array{}
+	return map[string]*Array{}
 }
 
-// 返回数据
-// return source data
-func (this Array) Value() any {
-	return this.source
+// 设置数据
+// set data with key
+func (this *Array) SetKey(value any, key string) (*Array, error) {
+	path := strings.Split(key, this.keyDelim)
+
+	return this.Set(value, path...)
 }
 
-// 返回 JSON 数据
-// return JSON data
-func (this Array) ToJSON() []byte {
-	data, _ := json.Marshal(this.anyDataFormat(this.source))
+// 设置数据
+// set data with path
+func (this *Array) Set(value any, path ...string) (*Array, error) {
+	if len(path) == 0 {
+		this.source = value
+		return this, nil
+	}
 
-	return data
+	if this.source == nil {
+		this.source = map[string]any{}
+	}
+
+	source := this.source
+
+	for target := 0; target < len(path); target++ {
+		pathSeg := path[target]
+
+		switch typedObj := source.(type) {
+		case map[string]any:
+			if target == len(path)-1 {
+				source = value
+				typedObj[pathSeg] = source
+			} else if source = typedObj[pathSeg]; source == nil {
+				typedObj[pathSeg] = map[string]any{}
+				source = typedObj[pathSeg]
+			}
+		case []any:
+			if pathSeg == "-" {
+				if target < 1 {
+					return nil, errors.New("unable to append new array index at root of path")
+				}
+
+				if target == len(path)-1 {
+					source = value
+				} else {
+					source = map[string]any{}
+				}
+
+				typedObj = append(typedObj, source)
+				if _, err := this.Set(typedObj, path[:target]...); err != nil {
+					return nil, err
+				}
+			} else {
+				index, err := strconv.Atoi(pathSeg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve path segment '%v': found array but segment value '%v' could not be parsed into array index: %v", target, pathSeg, err)
+				}
+
+				if index < 0 {
+					return nil, fmt.Errorf("failed to resolve path segment '%v': found array but index '%v' is invalid", target, pathSeg)
+				}
+
+				if len(typedObj) <= index {
+					return nil, fmt.Errorf("failed to resolve path segment '%v': found array but index '%v' exceeded target array size of '%v'", target, pathSeg, len(typedObj))
+				}
+
+				if target == len(path)-1 {
+					source = value
+					typedObj[index] = source
+				} else if source = typedObj[index]; source == nil {
+					return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was not found", target, pathSeg)
+				}
+			}
+		default:
+			return nil, errors.New("encountered value collision whilst building path")
+		}
+	}
+
+	return &Array{
+		keyDelim: this.keyDelim,
+		source:   source,
+	}, nil
+}
+
+// SetIndex attempts to set a value of an array element based on an index.
+func (this *Array) SetIndex(value any, index int) (*Array, error) {
+	if array, ok := this.Value().([]any); ok {
+		if index >= len(array) {
+			return nil, errors.New("out of bounds")
+		}
+
+		array[index] = value
+
+		return &Array{
+			keyDelim: this.keyDelim,
+			source:   array[index],
+		}, nil
+	}
+
+	return nil, errors.New("not an array")
+}
+
+// Flatten a array or slice into an source of key/value pairs for each
+// field, where the key is the full path of the structured field in dot path
+// notation matching the spec for the method Path.
+func (this *Array) Flatten() (map[string]any, error) {
+	return this.flatten(false)
+}
+
+// FlattenIncludeEmpty a array or slice into an source of key/value pairs
+// for each field, just as Flatten, but includes empty arrays and objects, where
+// the key is the full path of the structured field in dot path notation matching
+// the spec for the method Path.
+func (this *Array) FlattenIncludeEmpty() (map[string]any, error) {
+	return this.flatten(true)
+}
+
+func (this *Array) flatten(includeEmpty bool) (map[string]any, error) {
+	flattened := map[string]any{}
+
+	source := this.anyDataFormat(this.source)
+
+	switch t := source.(type) {
+	case map[string]any:
+		this.walkObject("", t, flattened, includeEmpty)
+	case []any:
+		this.walkArray("", t, flattened, includeEmpty)
+	default:
+		return nil, errors.New("not a map or slice")
+	}
+
+	return flattened, nil
 }
 
 // 搜索
 // Search data with key from source
-func (this Array) search(source any, path ...string) any {
+func (this *Array) search(source any, path ...string) any {
 	var val any
 
 	newSource, isMap := this.anyDataMapFormat(source)
@@ -212,7 +383,7 @@ func (this Array) search(source any, path ...string) any {
 
 // 数组
 // searchMap
-func (this Array) searchMap(source map[string]any, path []string) any {
+func (this *Array) searchMap(source map[string]any, path []string) any {
 	if len(path) == 0 {
 		return source
 	}
@@ -242,7 +413,7 @@ func (this Array) searchMap(source map[string]any, path []string) any {
 
 // 索引查询
 // searchIndexWithPathPrefixes
-func (this Array) searchIndexWithPathPrefixes(source any, path []string) any {
+func (this *Array) searchIndexWithPathPrefixes(source any, path []string) any {
 	if len(path) == 0 {
 		return source
 	}
@@ -268,7 +439,7 @@ func (this Array) searchIndexWithPathPrefixes(source any, path []string) any {
 
 // 切片
 // searchSliceWithPathPrefixes
-func (this Array) searchSliceWithPathPrefixes(
+func (this *Array) searchSliceWithPathPrefixes(
 	sourceSlice []any,
 	prefixKey string,
 	pathIndex int,
@@ -295,7 +466,7 @@ func (this Array) searchSliceWithPathPrefixes(
 
 // map 数据
 // searchMapWithPathPrefixes
-func (this Array) searchMapWithPathPrefixes(
+func (this *Array) searchMapWithPathPrefixes(
 	sourceMap map[string]any,
 	prefixKey string,
 	pathIndex int,
@@ -318,7 +489,7 @@ func (this Array) searchMapWithPathPrefixes(
 	return nil
 }
 
-func (this Array) isPathShadowedInDeepMap(path []string, m map[string]any) string {
+func (this *Array) isPathShadowedInDeepMap(path []string, m map[string]any) string {
 	var parentVal any
 
 	for i := 1; i < len(path); i++ {
@@ -347,7 +518,11 @@ func (this Array) isPathShadowedInDeepMap(path []string, m map[string]any) strin
 
 // any data 数据格式化
 // any data format
-func (this Array) anyDataFormat(data any) any {
+func (this *Array) anyDataFormat(data any) any {
+	if data == nil {
+		return nil
+	}
+
 	switch n := data.(type) {
 	case map[any]any:
 		return toStringMap(n)
@@ -369,7 +544,7 @@ func (this Array) anyDataFormat(data any) any {
 
 // any data map 数据格式化
 // any data map format
-func (this Array) anyDataMapFormat(data any) (map[string]any, bool) {
+func (this *Array) anyDataMapFormat(data any) (map[string]any, bool) {
 	switch n := data.(type) {
 	case map[any]any:
 		return toStringMap(n), true
@@ -387,9 +562,13 @@ func (this Array) anyDataMapFormat(data any) (map[string]any, bool) {
 
 // any map 数据格式化
 // any map format
-func (this Array) anyMapFormat(data any) (map[any]any, bool) {
+func (this *Array) anyMapFormat(data any) (map[any]any, bool) {
 	m := make(map[any]any)
 	isMap := false
+
+	if data == nil {
+		return m, isMap
+	}
 
 	dataValue := reflect.ValueOf(data)
 	for dataValue.Kind() == reflect.Pointer {
@@ -417,9 +596,13 @@ func (this Array) anyMapFormat(data any) (map[any]any, bool) {
 
 // any slice 数据格式化
 // any slice format
-func (this Array) anySliceFormat(data any) ([]any, bool) {
+func (this *Array) anySliceFormat(data any) ([]any, bool) {
 	m := make([]any, 0)
 	isSlice := false
+
+	if data == nil {
+		return m, isSlice
+	}
 
 	dataValue := reflect.ValueOf(data)
 	for dataValue.Kind() == reflect.Pointer {
@@ -444,4 +627,51 @@ func (this Array) anySliceFormat(data any) ([]any, bool) {
 	}
 
 	return m, isSlice
+}
+
+func (this *Array) walkObject(path string, obj, flat map[string]any, includeEmpty bool) {
+	if includeEmpty && len(obj) == 0 {
+		flat[path] = struct{}{}
+	}
+
+	for elePath, value := range obj {
+		if len(path) > 0 {
+			elePath = path + "." + elePath
+		}
+
+		v := this.anyDataFormat(value)
+
+		switch t := v.(type) {
+		case map[string]any:
+			this.walkObject(elePath, t, flat, includeEmpty)
+		case []any:
+			this.walkArray(elePath, t, flat, includeEmpty)
+		default:
+			flat[elePath] = value
+		}
+	}
+}
+
+func (this *Array) walkArray(path string, arr []any, flat map[string]any, includeEmpty bool) {
+	if includeEmpty && len(arr) == 0 {
+		flat[path] = []struct{}{}
+	}
+
+	for i, value := range arr {
+		elePath := strconv.Itoa(i)
+		if len(path) > 0 {
+			elePath = path + "." + elePath
+		}
+
+		ele := this.anyDataFormat(value)
+
+		switch t := ele.(type) {
+		case map[string]any:
+			this.walkObject(elePath, t, flat, includeEmpty)
+		case []any:
+			this.walkArray(elePath, t, flat, includeEmpty)
+		default:
+			flat[elePath] = value
+		}
+	}
 }
