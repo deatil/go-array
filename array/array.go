@@ -323,6 +323,65 @@ func (this *Array) SetIndex(value any, index int) (*Array, error) {
 	return nil, errors.New("not an array")
 }
 
+// 删除根据 key
+// delete data with key
+func (this *Array) DeleteKey(key string) error {
+	path := strings.Split(key, this.keyDelim)
+
+	return this.Delete(path...)
+}
+
+// 删除更加路径
+// delete data with path
+func (this *Array) Delete(path ...string) error {
+	if this == nil || this.source == nil {
+		return errors.New("source is nil")
+	}
+
+	if len(path) == 0 {
+		return errors.New("invalid search path")
+	}
+
+	source := this.source
+	target := path[len(path)-1]
+	if len(path) > 1 {
+		source = this.Search(path[:len(path)-1]...)
+	}
+
+	if obj, ok := source.(map[string]any); ok {
+		if _, ok = obj[target]; !ok {
+			return errors.New("field not found")
+		}
+
+		delete(obj, target)
+		return nil
+	}
+
+	if array, ok := source.([]any); ok {
+		if len(path) < 2 {
+			return errors.New("unable to delete array index at root of path")
+		}
+
+		index, err := strconv.Atoi(target)
+		if err != nil {
+			return fmt.Errorf("failed to parse array index '%v': %v", target, err)
+		}
+
+		if index >= len(array) {
+			return errors.New("out of bounds")
+		}
+		if index < 0 {
+			return errors.New("out of bounds")
+		}
+
+		array = append(array[:index], array[index+1:]...)
+		this.Set(array, path[:len(path)-1]...)
+		return nil
+	}
+
+	return errors.New("source is error")
+}
+
 // Flatten a array or slice into an source of key/value pairs for each
 // field, where the key is the full path of the structured field in dot path
 // notation matching the spec for the method Path.

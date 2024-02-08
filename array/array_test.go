@@ -781,6 +781,162 @@ func Test_Set(t *testing.T) {
 	}
 }
 
+func Test_Deletes(t *testing.T) {
+	jsonParsed, _ := ParseJSON([]byte(`{
+		"outter":{
+			"inner":{
+				"value1":10,
+				"value2":22,
+				"value3":32
+			},
+			"alsoInner":{
+				"value1":20,
+				"value2":42,
+				"value3":92
+			},
+			"another":{
+				"value1":null,
+				"value2":null,
+				"value3":null
+			}
+		}
+	}`))
+
+	if err := jsonParsed.Delete("outter", "inner", "value2"); err != nil {
+		t.Error(err)
+	}
+	if err := jsonParsed.Delete("outter", "inner", "value4"); err == nil {
+		t.Error("value4 should not have been found in outter.inner")
+	}
+	if err := jsonParsed.Delete("outter", "another", "value1"); err != nil {
+		t.Error(err)
+	}
+	if err := jsonParsed.Delete("outter", "another", "value4"); err == nil {
+		t.Error("value4 should not have been found in outter.another")
+	}
+	if err := jsonParsed.DeleteKey("outter.alsoInner.value1"); err != nil {
+		t.Error(err)
+	}
+	if err := jsonParsed.DeleteKey("outter.alsoInner.value4"); err == nil {
+		t.Error("value4 should not have been found in outter.alsoInner")
+	}
+	if err := jsonParsed.DeleteKey("outter.another.value2"); err != nil {
+		t.Error(err)
+	}
+	if err := jsonParsed.Delete("outter.another.value4"); err == nil {
+		t.Error("value4 should not have been found in outter.another")
+	}
+
+	expected := `{"outter":{"alsoInner":{"value2":42,"value3":92},"another":{"value3":null},"inner":{"value1":10,"value3":32}}}`
+	if actual := jsonParsed.String(); actual != expected {
+		t.Errorf("Unexpected result from deletes: %v != %v", actual, expected)
+	}
+}
+
+func Test_DeletesWithSlices(t *testing.T) {
+	rawJSON := `{
+		"outter":[
+			{
+				"foo":{
+					"value1":10,
+					"value2":22,
+					"value3":32
+				},
+				"bar": [
+					20,
+					42,
+					92
+				]
+			},
+			{
+				"baz":{
+					"value1":null,
+					"value2":null,
+					"value3":null
+				}
+			}
+		]
+	}`
+
+	jsonParsed, err := ParseJSON([]byte(rawJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = jsonParsed.Delete("outter", "1", "baz", "value1"); err != nil {
+		t.Error(err)
+	}
+
+	expected := `{"outter":[{"bar":[20,42,92],"foo":{"value1":10,"value2":22,"value3":32}},{"baz":{"value2":null,"value3":null}}]}`
+	if actual := jsonParsed.String(); actual != expected {
+		t.Errorf("Unexpected result from array deletes: %v != %v", actual, expected)
+	}
+
+	jsonParsed, err = ParseJSON([]byte(rawJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = jsonParsed.Delete("outter", "1", "baz"); err != nil {
+		t.Error(err)
+	}
+
+	expected = `{"outter":[{"bar":[20,42,92],"foo":{"value1":10,"value2":22,"value3":32}},{}]}`
+	if actual := jsonParsed.String(); actual != expected {
+		t.Errorf("Unexpected result from array deletes: %v != %v", actual, expected)
+	}
+
+	jsonParsed, err = ParseJSON([]byte(rawJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = jsonParsed.Delete("outter", "1"); err != nil {
+		t.Error(err)
+	}
+
+	expected = `{"outter":[{"bar":[20,42,92],"foo":{"value1":10,"value2":22,"value3":32}}]}`
+	if actual := jsonParsed.String(); actual != expected {
+		t.Errorf("Unexpected result from array deletes: %v != %v", actual, expected)
+	}
+
+	jsonParsed, err = ParseJSON([]byte(rawJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = jsonParsed.Delete("outter", "0", "bar", "0"); err != nil {
+		t.Error(err)
+	}
+
+	expected = `{"outter":[{"bar":[42,92],"foo":{"value1":10,"value2":22,"value3":32}},{"baz":{"value1":null,"value2":null,"value3":null}}]}`
+	if actual := jsonParsed.String(); actual != expected {
+		t.Errorf("Unexpected result from array deletes: %v != %v", actual, expected)
+	}
+
+	jsonParsed, err = ParseJSON([]byte(rawJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = jsonParsed.Delete("outter", "0", "bar", "1"); err != nil {
+		t.Error(err)
+	}
+
+	expected = `{"outter":[{"bar":[20,92],"foo":{"value1":10,"value2":22,"value3":32}},{"baz":{"value1":null,"value2":null,"value3":null}}]}`
+	if actual := jsonParsed.String(); actual != expected {
+		t.Errorf("Unexpected result from array deletes: %v != %v", actual, expected)
+	}
+
+	jsonParsed, err = ParseJSON([]byte(rawJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = jsonParsed.Delete("outter", "0", "bar", "2"); err != nil {
+		t.Error(err)
+	}
+
+	expected = `{"outter":[{"bar":[20,42],"foo":{"value1":10,"value2":22,"value3":32}},{"baz":{"value1":null,"value2":null,"value3":null}}]}`
+	if actual := jsonParsed.String(); actual != expected {
+		t.Errorf("Unexpected result from array deletes: %v != %v", actual, expected)
+	}
+}
+
 func Example() {
 	Get(arrData, "b.hhTy3.666.3")
 }
