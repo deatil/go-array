@@ -295,14 +295,17 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 				}
 			}
 		default:
-			sourceType := reflect.TypeOf(source)
-
 			sourceValue := reflect.ValueOf(source)
-			pathSegValue := reflect.ValueOf(pathSeg)
+			for sourceValue.Kind() == reflect.Ptr {
+				sourceValue = sourceValue.Elem()
+			}
 
+			sourceType := sourceValue.Type()
+
+			pathSegValue := reflect.ValueOf(pathSeg)
 			pathSegValue, ok := this.convertTo(sourceType.Key(), pathSegValue)
 			if !ok {
-				return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+				return nil, fmt.Errorf("convert failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 			}
 
 			switch {
@@ -311,18 +314,14 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 					valueValue := reflect.ValueOf(value)
 					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
 					if !ok {
-						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+						return nil, fmt.Errorf("map failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 					}
 
 					sourceValue.SetMapIndex(pathSegValue, valueValue)
 
 					source = valueValue.Interface()
 				} else if source = sourceValue.MapIndex(pathSegValue).Interface(); source == nil {
-					valueValue := reflect.ValueOf(map[string]any{})
-					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
-					if !ok {
-						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
-					}
+					valueValue := reflect.New(sourceType.Elem())
 
 					sourceValue.SetMapIndex(pathSegValue, valueValue)
 
@@ -343,7 +342,7 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 					valueValue := reflect.ValueOf(source)
 					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
 					if !ok {
-						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+						return nil, fmt.Errorf("slice failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 					}
 
 					sourceValue = reflect.AppendSlice(sourceValue, valueValue)
@@ -354,15 +353,15 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 				} else {
 					index, err := strconv.Atoi(pathSeg)
 					if err != nil {
-						return nil, fmt.Errorf("failed to resolve path segment '%v': found array but segment value '%v' could not be parsed into array index: %v", target, pathSeg, err)
+						return nil, fmt.Errorf("slice failed to resolve path segment '%v': found array but segment value '%v' could not be parsed into array index: %v", target, pathSeg, err)
 					}
 
 					if index < 0 {
-						return nil, fmt.Errorf("failed to resolve path segment '%v': found array but index '%v' is invalid", target, pathSeg)
+						return nil, fmt.Errorf("slice failed to resolve path segment '%v': found array but index '%v' is invalid", target, pathSeg)
 					}
 
 					if sourceValue.Len() <= index {
-						return nil, fmt.Errorf("failed to resolve path segment '%v': found array but index '%v' exceeded target array size of '%v'", target, pathSeg, sourceValue.Len())
+						return nil, fmt.Errorf("slice failed to resolve path segment '%v': found array but index '%v' exceeded target array size of '%v'", target, pathSeg, sourceValue.Len())
 					}
 
 					if target == len(path)-1 {
@@ -371,12 +370,12 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 						valueValue := reflect.ValueOf(source)
 						valueValue, ok := this.convertTo(sourceValue.Index(index).Type(), valueValue)
 						if !ok {
-							return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+							return nil, fmt.Errorf("slice failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 						}
 
 						sourceValue.Index(index).Set(valueValue)
 					} else if source = sourceValue.Index(index).Interface(); source == nil {
-						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was not found", target, pathSeg)
+						return nil, fmt.Errorf("slice failed to resolve path segment '%v': field '%v' was not found", target, pathSeg)
 					}
 				}
 			default:
@@ -407,8 +406,12 @@ func (this *Array) SetIndex(value any, index int) (*Array, error) {
 	}
 
 	// 反射设置
-	sourceType := reflect.TypeOf(this.Value())
 	sourceValue := reflect.ValueOf(this.Value())
+	for sourceValue.Kind() == reflect.Ptr {
+		sourceValue = sourceValue.Elem()
+	}
+
+	sourceType := sourceValue.Type()
 
 	if sourceType.Kind() == reflect.Slice {
 		if index >= sourceValue.Len() {
@@ -489,8 +492,12 @@ func (this *Array) Delete(path ...string) error {
 	}
 
 	// 通用删除
-	sourceType := reflect.TypeOf(source)
 	sourceValue := reflect.ValueOf(source)
+	for sourceValue.Kind() == reflect.Ptr {
+		sourceValue = sourceValue.Elem()
+	}
+
+	sourceType := sourceValue.Type()
 
 	var dst any
 	dstValue := reflect.ValueOf(&dst)

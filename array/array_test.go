@@ -793,10 +793,24 @@ func Test_SetMap(t *testing.T) {
 	res := fmt.Sprintf("%v", obj.Find("b.ff"))
 
 	check := `map[111:fccccc 222:fddddd 333:dfffff 555:yyyyyyyyy]`
-
 	if res != check {
-		t.Errorf("SetMap fail.got %v, want %v", res, check)
+		t.Errorf("SetMap fail. got %v, want %v", res, check)
 	}
+
+	/*
+		obj2 := New(arrData)
+		_, err = obj2.Set(133.122333, "b", "hhTy3", "666")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		res2 := fmt.Sprintf("%v", obj2.Find("b.hhTy3"))
+
+		check2 := `map[111:fccccc 222:fddddd 333:dfffff 555:yyyyyyyyy]`
+		if res2 != check2 {
+			t.Errorf("SetMap 2 fail. got %v, want %v", res2, check2)
+		}
+	*/
 }
 
 func Test_Deletes(t *testing.T) {
