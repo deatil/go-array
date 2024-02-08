@@ -1,6 +1,7 @@
 package array
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -778,6 +779,23 @@ func Test_Set(t *testing.T) {
 	exp := `{"foo":[1,{"baz":[2,3]},5]}`
 	if act := gObj.String(); act != exp {
 		t.Errorf("Unexpected value: %v != %v", act, exp)
+	}
+}
+
+func Test_SetMap(t *testing.T) {
+	obj := New(arrData)
+
+	_, err := obj.Set("yyyyyyyyy", "b", "ff", "555")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res := fmt.Sprintf("%v", obj.Find("b.ff"))
+
+	check := `map[111:fccccc 222:fddddd 333:dfffff 555:yyyyyyyyy]`
+
+	if res != check {
+		t.Errorf("SetMap fail.got %v, want %v", res, check)
 	}
 }
 

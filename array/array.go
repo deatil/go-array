@@ -295,7 +295,93 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 				}
 			}
 		default:
-			return nil, errors.New("encountered value collision whilst building path")
+			sourceType := reflect.TypeOf(source)
+
+			sourceValue := reflect.ValueOf(source)
+			pathSegValue := reflect.ValueOf(pathSeg)
+
+			pathSegValue, ok := this.convertTo(sourceType.Key(), pathSegValue)
+			if !ok {
+				return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+			}
+
+			switch {
+			case sourceType.Kind() == reflect.Map:
+				if target == len(path)-1 {
+					valueValue := reflect.ValueOf(value)
+					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
+					if !ok {
+						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+					}
+
+					sourceValue.SetMapIndex(pathSegValue, valueValue)
+
+					source = valueValue.Interface()
+				} else if source = sourceValue.MapIndex(pathSegValue).Interface(); source == nil {
+					valueValue := reflect.ValueOf(map[string]any{})
+					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
+					if !ok {
+						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+					}
+
+					sourceValue.SetMapIndex(pathSegValue, valueValue)
+
+					source = valueValue.Interface()
+				}
+			case sourceType.Kind() == reflect.Slice:
+				if pathSeg == "-" {
+					if target < 1 {
+						return nil, errors.New("unable to append new array index at root of path")
+					}
+
+					if target == len(path)-1 {
+						source = value
+					} else {
+						source = map[string]any{}
+					}
+
+					valueValue := reflect.ValueOf(source)
+					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
+					if !ok {
+						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+					}
+
+					sourceValue = reflect.AppendSlice(sourceValue, valueValue)
+
+					if _, err := this.Set(sourceValue, path[:target]...); err != nil {
+						return nil, err
+					}
+				} else {
+					index, err := strconv.Atoi(pathSeg)
+					if err != nil {
+						return nil, fmt.Errorf("failed to resolve path segment '%v': found array but segment value '%v' could not be parsed into array index: %v", target, pathSeg, err)
+					}
+
+					if index < 0 {
+						return nil, fmt.Errorf("failed to resolve path segment '%v': found array but index '%v' is invalid", target, pathSeg)
+					}
+
+					if sourceValue.Len() <= index {
+						return nil, fmt.Errorf("failed to resolve path segment '%v': found array but index '%v' exceeded target array size of '%v'", target, pathSeg, sourceValue.Len())
+					}
+
+					if target == len(path)-1 {
+						source = value
+
+						valueValue := reflect.ValueOf(source)
+						valueValue, ok := this.convertTo(sourceValue.Index(index).Type(), valueValue)
+						if !ok {
+							return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+						}
+
+						sourceValue.Index(index).Set(valueValue)
+					} else if source = sourceValue.Index(index).Interface(); source == nil {
+						return nil, fmt.Errorf("failed to resolve path segment '%v': field '%v' was not found", target, pathSeg)
+					}
+				}
+			default:
+				return nil, errors.New("encountered value collision whilst building path")
+			}
 		}
 	}
 
@@ -317,6 +403,29 @@ func (this *Array) SetIndex(value any, index int) (*Array, error) {
 		return &Array{
 			keyDelim: this.keyDelim,
 			source:   array[index],
+		}, nil
+	}
+
+	// 反射设置
+	sourceType := reflect.TypeOf(this.Value())
+	sourceValue := reflect.ValueOf(this.Value())
+
+	if sourceType.Kind() == reflect.Slice {
+		if index >= sourceValue.Len() {
+			return nil, errors.New("out of bounds")
+		}
+
+		valueValue := reflect.ValueOf(value)
+		valueValue, ok := this.convertTo(sourceValue.Index(index).Type(), valueValue)
+		if !ok {
+			return nil, fmt.Errorf("failed: field '%v' was error", value)
+		}
+
+		sourceValue.Index(index).Set(valueValue)
+
+		return &Array{
+			keyDelim: this.keyDelim,
+			source:   sourceValue.Interface(),
 		}, nil
 	}
 
@@ -376,6 +485,50 @@ func (this *Array) Delete(path ...string) error {
 
 		array = append(array[:index], array[index+1:]...)
 		this.Set(array, path[:len(path)-1]...)
+		return nil
+	}
+
+	// 通用删除
+	sourceType := reflect.TypeOf(source)
+	sourceValue := reflect.ValueOf(source)
+
+	var dst any
+	dstValue := reflect.ValueOf(&dst)
+
+	if sourceType.Kind() == reflect.Map {
+		iter := sourceValue.MapRange()
+		for iter.Next() {
+			k := iter.Key().Interface()
+
+			if toString(k) != target {
+				dstValue.SetMapIndex(iter.Key(), iter.Value())
+			}
+		}
+
+		source = dstValue.Interface()
+
+		return nil
+	}
+
+	if sourceType.Kind() == reflect.Slice {
+		if len(path) < 2 {
+			return errors.New("unable to delete array index at root of path")
+		}
+
+		index, err := strconv.Atoi(target)
+		if err != nil {
+			return fmt.Errorf("failed to parse array index '%v': %v", target, err)
+		}
+
+		if index >= sourceValue.Len() {
+			return errors.New("out of bounds")
+		}
+		if index < 0 {
+			return errors.New("out of bounds")
+		}
+
+		dstValue = reflect.AppendSlice(sourceValue.Slice(0, index), sourceValue.Slice(index+1, sourceValue.Len()))
+		this.Set(dstValue.Interface(), path[:len(path)-1]...)
 		return nil
 	}
 
@@ -733,4 +886,12 @@ func (this *Array) walkArray(path string, arr []any, flat map[string]any, includ
 			flat[elePath] = value
 		}
 	}
+}
+
+func (this *Array) convertTo(typ reflect.Type, src any) (reflect.Value, bool) {
+	if !reflect.ValueOf(src).CanConvert(typ) {
+		return reflect.Value{}, false
+	}
+
+	return reflect.ValueOf(src).Convert(typ), true
 }
