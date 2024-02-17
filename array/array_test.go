@@ -1,6 +1,8 @@
 package array
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -234,6 +236,12 @@ func Test_Get(t *testing.T) {
 			"222555",
 			"222555",
 			"default",
+		},
+		{
+			"b.hhTy3.666.65555",
+			"",
+			"",
+			"nil",
 		},
 	}
 
@@ -649,6 +657,11 @@ func Test_Sub_And_ToJSON(t *testing.T) {
 			`{"qq1":"qq1ccccc","qq2":"qq2ddddd","qq3":"qq3fffff"}`,
 			"&map[int]any",
 		},
+		{
+			"b.d222",
+			`null`,
+			"null",
+		},
 	}
 
 	for _, v := range testData {
@@ -659,10 +672,66 @@ func Test_Sub_And_ToJSON(t *testing.T) {
 
 }
 
+func Test_Sub_And_ToJSONIndent(t *testing.T) {
+	assert := assertT(t)
+
+	testData := []struct {
+		key      string
+		expected string
+		msg      string
+	}{
+		{
+			"b.dd",
+			`[
+  "ccccc",
+  "ddddd",
+  "fffff"
+]`,
+			"[]any",
+		},
+		{
+			"b.d",
+			`{
+  "e": "eee",
+  "f": {
+    "g": "ggg"
+  }
+}`,
+			"map[any]any",
+		},
+		{
+			"b.hhTy3.333",
+			`{
+  "qq1": "qq1ccccc",
+  "qq2": "qq2ddddd",
+  "qq3": "qq3fffff"
+}`,
+			"&map[int]any",
+		},
+		{
+			"b.d222",
+			`null`,
+			"null",
+		},
+	}
+
+	for _, v := range testData {
+		check := New(arrData).Sub(v.key).ToJSONIndent("", "  ")
+
+		assert(check, v.expected, v.msg)
+	}
+
+}
+
 func Test_Children(t *testing.T) {
 	jsonParsed, _ := ParseJSON([]byte(`{"map":{"objectOne":{"num":1}}, "array":[ "first", "second", "third" ]}`))
 
 	expected := []string{"first", "second", "third"}
+
+	childrenNil := jsonParsed.Sub("array123132").Children()
+	if childrenNil != nil {
+		t.Error("Child need return nil")
+	}
 
 	children := jsonParsed.Sub("array").Children()
 	for i, child := range children {
@@ -695,6 +764,11 @@ func Test_ChildrenMap(t *testing.T) {
 	if len(objectMap) != 3 {
 		t.Errorf("Wrong num of elements in objectMap: %v != %v", len(objectMap), 3)
 		return
+	}
+
+	ChildrenMapNil := json1.Sub("array123132").ChildrenMap()
+	if len(ChildrenMapNil) != 0 {
+		t.Error("Child need return map[string]*Array{}")
 	}
 
 	for key, val := range objectMap {
@@ -784,33 +858,144 @@ func Test_Set(t *testing.T) {
 
 func Test_SetMap(t *testing.T) {
 	obj := New(arrData)
-
 	_, err := obj.Set("yyyyyyyyy", "b", "ff", "555")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	res := fmt.Sprintf("%v", obj.Find("b.ff"))
+	res := obj.Sub("b.ff").String()
 
-	check := `map[111:fccccc 222:fddddd 333:dfffff 555:yyyyyyyyy]`
+	check := `{"111":"fccccc","222":"fddddd","333":"dfffff","555":"yyyyyyyyy"}`
 	if res != check {
 		t.Errorf("SetMap fail. got %v, want %v", res, check)
 	}
 
-	/*
-		obj2 := New(arrData)
-		_, err = obj2.Set(133.122333, "b", "hhTy3", "666")
-		if err != nil {
-			t.Fatal(err)
-		}
+	// =======
 
-		res2 := fmt.Sprintf("%v", obj2.Find("b.hhTy3"))
+	obj1 := New(arrData)
+	_, err = obj1.Set("yyyyyyyyy")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		check2 := `map[111:fccccc 222:fddddd 333:dfffff 555:yyyyyyyyy]`
-		if res2 != check2 {
-			t.Errorf("SetMap 2 fail. got %v, want %v", res2, check2)
-		}
-	*/
+	res1 := fmt.Sprintf("%v", obj1.Value())
+
+	check1 := `yyyyyyyyy`
+	if res1 != check1 {
+		t.Errorf("SetMap 1 fail. got %v, want %v", res1, check1)
+	}
+
+	// =======
+
+	obj2 := New(arrData)
+	_, err = obj2.Set(133.122333, "b", "hhTy3", 666)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res2 := fmt.Sprintf("%v", obj2.Sub("b.hhTy3").Value())
+
+	check2 := `&map[111:hccccc 222:hddddd 333:map[qq1:qq1ccccc qq2:qq2ddddd qq3:qq3fffff] 666:133.122333]`
+	if res2 != check2 {
+		t.Errorf("SetMap 2 fail. got %v, want %v", res2, check2)
+	}
+}
+
+func Test_SetKey(t *testing.T) {
+	obj := New(arrData)
+	_, err := obj.SetKey("yyyyyyyyy", "b.ff.555")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res := obj.Sub("b.ff").String()
+
+	check := `{"111":"fccccc","222":"fddddd","333":"dfffff","555":"yyyyyyyyy"}`
+	if res != check {
+		t.Errorf("SetKey fail. got %v, want %v", res, check)
+	}
+}
+
+func Test_ArraysTwo(t *testing.T) {
+	json1 := New(nil)
+
+	test1, err := json1.ArrayOfSize(4, "test1")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if _, err = test1.ArrayOfSizeIndex(2, 0); err != nil {
+		t.Error(err)
+	}
+	if _, err = test1.ArrayOfSizeIndex(2, 1); err != nil {
+		t.Error(err)
+	}
+	if _, err = test1.ArrayOfSizeIndex(2, 2); err != nil {
+		t.Error(err)
+	}
+	if _, err = test1.ArrayOfSizeIndex(2, 3); err != nil {
+		t.Error(err)
+	}
+
+	if _, err = test1.ArrayOfSizeIndex(2, 4); err != ErrOutOfBounds {
+		t.Errorf("Index should have been out of bounds")
+	}
+
+	if _, err = json1.Sub("test1").Index(0).SetIndex(10, 0); err != nil {
+		t.Error(err)
+	}
+	if _, err = json1.Sub("test1").Index(0).SetIndex(11, 1); err != nil {
+		t.Error(err)
+	}
+
+	if _, err = json1.Sub("test1").Index(1).SetIndex(12, 0); err != nil {
+		t.Error(err)
+	}
+	if _, err = json1.Sub("test1").Index(1).SetIndex(13, 1); err != nil {
+		t.Error(err)
+	}
+
+	if _, err = json1.Sub("test1").Index(2).SetIndex(14, 0); err != nil {
+		t.Error(err)
+	}
+	if _, err = json1.Sub("test1").Index(2).SetIndex(15, 1); err != nil {
+		t.Error(err)
+	}
+
+	if _, err = json1.Sub("test1").Index(3).SetIndex(16, 0); err != nil {
+		t.Error(err)
+	}
+	if _, err = json1.Sub("test1").Index(3).SetIndex(17, 1); err != nil {
+		t.Error(err)
+	}
+
+	if val := json1.Sub("test1").Index(0).Index(0).Value().(int); val != 10 {
+		t.Errorf("create array: %v != %v", val, 10)
+	}
+	if val := json1.Sub("test1").Index(0).Index(1).Value().(int); val != 11 {
+		t.Errorf("create array: %v != %v", val, 11)
+	}
+
+	if val := json1.Sub("test1").Index(1).Index(0).Value().(int); val != 12 {
+		t.Errorf("create array: %v != %v", val, 12)
+	}
+	if val := json1.Sub("test1").Index(1).Index(1).Value().(int); val != 13 {
+		t.Errorf("create array: %v != %v", val, 13)
+	}
+
+	if val := json1.Sub("test1").Index(2).Index(0).Value().(int); val != 14 {
+		t.Errorf("create array: %v != %v", val, 14)
+	}
+	if val := json1.Sub("test1").Index(2).Index(1).Value().(int); val != 15 {
+		t.Errorf("create array: %v != %v", val, 15)
+	}
+
+	if val := json1.Sub("test1").Index(3).Index(0).Value().(int); val != 16 {
+		t.Errorf("create array: %v != %v", val, 16)
+	}
+	if val := json1.Sub("test1").Index(3).Index(1).Value().(int); val != 17 {
+		t.Errorf("create array: %v != %v", val, 17)
+	}
 }
 
 func Test_Deletes(t *testing.T) {
@@ -862,6 +1047,48 @@ func Test_Deletes(t *testing.T) {
 	expected := `{"outter":{"alsoInner":{"value2":42,"value3":92},"another":{"value3":null},"inner":{"value1":10,"value3":32}}}`
 	if actual := jsonParsed.String(); actual != expected {
 		t.Errorf("Unexpected result from deletes: %v != %v", actual, expected)
+	}
+
+	arrData2 := map[string]any{
+		"a": 123,
+		"b": map[string]any{
+			"ff": map[any]any{
+				111: "fccccc",
+				222: "fddddd",
+				333: "dfffff",
+			},
+			"t666": []float64{
+				12.3,
+				32.5,
+				22.56,
+				789.156,
+			},
+		},
+	}
+
+	jsonParsed2 := New(arrData2)
+	if err := jsonParsed2.Delete("b", "ff", 333); err != nil {
+		t.Error(err)
+	}
+	if err := jsonParsed2.Delete("b", "ff", 33355); err == nil {
+		t.Error("data should not have been found in b.ff")
+	}
+
+	if err := jsonParsed2.Delete("b", "t666", 2); err != nil {
+		t.Error(err)
+	}
+	if err := jsonParsed2.Delete("b", "t666", 7); err == nil {
+		t.Error("data should not have been found in b.t666")
+	}
+
+	expected2 := `{"111":"fccccc","222":"fddddd"}`
+	if actual2 := jsonParsed2.Sub("b.ff").String(); actual2 != expected2 {
+		t.Errorf("Unexpected result from deletes: %v != %v", actual2, expected2)
+	}
+
+	expected2 = `[12.3,32.5,789.156]`
+	if actual2 := jsonParsed2.Sub("b.t666").String(); actual2 != expected2 {
+		t.Errorf("Unexpected result from deletes: %v != %v", actual2, expected2)
 	}
 }
 
@@ -967,6 +1194,32 @@ func Test_DeletesWithSlices(t *testing.T) {
 	if actual := jsonParsed.String(); actual != expected {
 		t.Errorf("Unexpected result from array deletes: %v != %v", actual, expected)
 	}
+}
+
+func Test_BasicWithDecoder(t *testing.T) {
+	sample := []byte(`{"test":{"int":10, "float":6.66}}`)
+	dec := json.NewDecoder(bytes.NewReader(sample))
+	dec.UseNumber()
+
+	val, err := ParseJSONDecoder(dec)
+	if err != nil {
+		t.Errorf("Failed to parse: %v", err)
+		return
+	}
+
+	checkNumber := func(path string, expectedVal json.Number) {
+		data := val.Sub(path).Value()
+		asNumber, isNumber := data.(json.Number)
+		if !isNumber {
+			t.Error("Failed to parse using decoder UseNumber policy")
+		}
+		if expectedVal != asNumber {
+			t.Errorf("Expected[%s] but got [%s]", expectedVal, asNumber)
+		}
+	}
+
+	checkNumber("test.int", "10")
+	checkNumber("test.float", "6.66")
 }
 
 func Example() {

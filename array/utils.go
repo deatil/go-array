@@ -119,3 +119,21 @@ func indirectToStringerOrError(a any) any {
 
 	return v.Interface()
 }
+
+func formatPath(path []string) []any {
+	p := make([]any, 0)
+	for _, v := range path {
+		p = append(p, v)
+	}
+
+	return p
+}
+
+func formatPathString(path []any) []string {
+	p := make([]string, 0)
+	for _, v := range path {
+		p = append(p, toString(v))
+	}
+
+	return p
+}

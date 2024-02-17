@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+var (
+	ErrOutOfBounds = errors.New("out of bounds")
+)
+
 /**
  * 获取数组数据 / array struct
  *
@@ -169,6 +173,45 @@ func Sub(source any, key string) *Array {
 	return New(source).Sub(key)
 }
 
+// Index attempts to find and return an element
+func (this *Array) Index(index int) *Array {
+	if array, ok := this.Value().([]any); ok {
+		if index >= len(array) {
+			return nil
+		}
+
+		source := array[index]
+
+		return &Array{
+			keyDelim: this.keyDelim,
+			source:   source,
+		}
+	}
+
+	// 反射返回
+	sourceValue := reflect.ValueOf(this.Value())
+	for sourceValue.Kind() == reflect.Ptr {
+		sourceValue = sourceValue.Elem()
+	}
+
+	sourceType := sourceValue.Type()
+
+	if sourceType.Kind() == reflect.Slice {
+		if index >= sourceValue.Len() {
+			return nil
+		}
+
+		sourceValue.Index(index)
+
+		return &Array{
+			keyDelim: this.keyDelim,
+			source:   sourceValue.Interface(),
+		}
+	}
+
+	return nil
+}
+
 // Children returns a slice of all children of an array element. This also works
 // for objects, however, the children returned for an source will be in a random
 // order and you lose the names of the returned objects this way. If the
@@ -228,12 +271,12 @@ func (this *Array) ChildrenMap() map[string]*Array {
 func (this *Array) SetKey(value any, key string) (*Array, error) {
 	path := strings.Split(key, this.keyDelim)
 
-	return this.Set(value, path...)
+	return this.Set(value, formatPath(path)...)
 }
 
 // 设置数据
 // set data with path
-func (this *Array) Set(value any, path ...string) (*Array, error) {
+func (this *Array) Set(value any, path ...any) (*Array, error) {
 	if len(path) == 0 {
 		this.source = value
 		return this, nil
@@ -246,7 +289,7 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 	source := this.source
 
 	for target := 0; target < len(path); target++ {
-		pathSeg := path[target]
+		pathSeg := toString(path[target])
 
 		switch typedObj := source.(type) {
 		case map[string]any:
@@ -302,8 +345,7 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 
 			sourceType := sourceValue.Type()
 
-			pathSegValue := reflect.ValueOf(pathSeg)
-			pathSegValue, ok := this.convertTo(sourceType.Key(), pathSegValue)
+			pathSegValue, ok := this.convertTo(sourceType.Key(), path[target])
 			if !ok {
 				return nil, fmt.Errorf("convert failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 			}
@@ -311,8 +353,7 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 			switch {
 			case sourceType.Kind() == reflect.Map:
 				if target == len(path)-1 {
-					valueValue := reflect.ValueOf(value)
-					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
+					valueValue, ok := this.convertTo(sourceType.Elem(), value)
 					if !ok {
 						return nil, fmt.Errorf("map failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 					}
@@ -339,8 +380,7 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 						source = map[string]any{}
 					}
 
-					valueValue := reflect.ValueOf(source)
-					valueValue, ok := this.convertTo(sourceType.Elem(), valueValue)
+					valueValue, ok := this.convertTo(sourceType.Elem(), source)
 					if !ok {
 						return nil, fmt.Errorf("slice failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 					}
@@ -367,8 +407,7 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 					if target == len(path)-1 {
 						source = value
 
-						valueValue := reflect.ValueOf(source)
-						valueValue, ok := this.convertTo(sourceValue.Index(index).Type(), valueValue)
+						valueValue, ok := this.convertTo(sourceValue.Index(index).Type(), source)
 						if !ok {
 							return nil, fmt.Errorf("slice failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 						}
@@ -394,7 +433,7 @@ func (this *Array) Set(value any, path ...string) (*Array, error) {
 func (this *Array) SetIndex(value any, index int) (*Array, error) {
 	if array, ok := this.Value().([]any); ok {
 		if index >= len(array) {
-			return nil, errors.New("out of bounds")
+			return nil, ErrOutOfBounds
 		}
 
 		array[index] = value
@@ -415,11 +454,10 @@ func (this *Array) SetIndex(value any, index int) (*Array, error) {
 
 	if sourceType.Kind() == reflect.Slice {
 		if index >= sourceValue.Len() {
-			return nil, errors.New("out of bounds")
+			return nil, ErrOutOfBounds
 		}
 
-		valueValue := reflect.ValueOf(value)
-		valueValue, ok := this.convertTo(sourceValue.Index(index).Type(), valueValue)
+		valueValue, ok := this.convertTo(sourceValue.Index(index).Type(), value)
 		if !ok {
 			return nil, fmt.Errorf("failed: field '%v' was error", value)
 		}
@@ -435,17 +473,29 @@ func (this *Array) SetIndex(value any, index int) (*Array, error) {
 	return nil, errors.New("not an array")
 }
 
+// ArrayOfSize creates a new JSON array of a particular size at a path. Returns
+// an error if the path contains a collision with a non object type.
+func (this *Array) ArrayOfSize(size int, path ...any) (*Array, error) {
+	a := make([]any, size)
+	return this.Set(a, path...)
+}
+
+func (this *Array) ArrayOfSizeIndex(size, index int) (*Array, error) {
+	a := make([]any, size)
+	return this.SetIndex(a, index)
+}
+
 // 删除根据 key
 // delete data with key
 func (this *Array) DeleteKey(key string) error {
 	path := strings.Split(key, this.keyDelim)
 
-	return this.Delete(path...)
+	return this.Delete(formatPath(path)...)
 }
 
 // 删除更加路径
 // delete data with path
-func (this *Array) Delete(path ...string) error {
+func (this *Array) Delete(path ...any) error {
 	if this == nil || this.source == nil {
 		return errors.New("source is nil")
 	}
@@ -455,9 +505,10 @@ func (this *Array) Delete(path ...string) error {
 	}
 
 	source := this.source
-	target := path[len(path)-1]
+
+	target := toString(path[len(path)-1])
 	if len(path) > 1 {
-		source = this.Search(path[:len(path)-1]...)
+		source = this.Search(formatPathString(path[:len(path)-1])...)
 	}
 
 	if obj, ok := source.(map[string]any); ok {
@@ -466,6 +517,9 @@ func (this *Array) Delete(path ...string) error {
 		}
 
 		delete(obj, target)
+
+		this.Set(obj, path[:len(path)-1]...)
+
 		return nil
 	}
 
@@ -480,14 +534,15 @@ func (this *Array) Delete(path ...string) error {
 		}
 
 		if index >= len(array) {
-			return errors.New("out of bounds")
+			return ErrOutOfBounds
 		}
 		if index < 0 {
-			return errors.New("out of bounds")
+			return ErrOutOfBounds
 		}
 
 		array = append(array[:index], array[index+1:]...)
 		this.Set(array, path[:len(path)-1]...)
+
 		return nil
 	}
 
@@ -499,25 +554,36 @@ func (this *Array) Delete(path ...string) error {
 
 	sourceType := sourceValue.Type()
 
-	var dst any
-	dstValue := reflect.ValueOf(&dst)
+	var dstValue reflect.Value
 
 	if sourceType.Kind() == reflect.Map {
+		hasKey := false
+
+		dstValue = reflect.MakeMap(sourceType)
+
 		iter := sourceValue.MapRange()
 		for iter.Next() {
 			k := iter.Key().Interface()
 
 			if toString(k) != target {
 				dstValue.SetMapIndex(iter.Key(), iter.Value())
+			} else {
+				hasKey = true
 			}
 		}
 
-		source = dstValue.Interface()
+		if !hasKey {
+			return errors.New("field not found")
+		}
+
+		this.Set(dstValue.Interface(), path[:len(path)-1]...)
 
 		return nil
 	}
 
 	if sourceType.Kind() == reflect.Slice {
+		dstValue = reflect.MakeSlice(sourceType, len(path)-1, len(path)-1)
+
 		if len(path) < 2 {
 			return errors.New("unable to delete array index at root of path")
 		}
@@ -528,14 +594,16 @@ func (this *Array) Delete(path ...string) error {
 		}
 
 		if index >= sourceValue.Len() {
-			return errors.New("out of bounds")
+			return ErrOutOfBounds
 		}
 		if index < 0 {
-			return errors.New("out of bounds")
+			return ErrOutOfBounds
 		}
 
 		dstValue = reflect.AppendSlice(sourceValue.Slice(0, index), sourceValue.Slice(index+1, sourceValue.Len()))
+
 		this.Set(dstValue.Interface(), path[:len(path)-1]...)
+
 		return nil
 	}
 
