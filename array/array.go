@@ -10,6 +10,46 @@ import (
 )
 
 var (
+	r1 *strings.Replacer
+	r2 *strings.Replacer
+)
+
+func init() {
+	r1 = strings.NewReplacer("~1", "/", "~0", "~")
+	r2 = strings.NewReplacer("~1", ".", "~0", "~")
+}
+
+func JSONPointerToSlice(path string) ([]string, error) {
+	if path == "" {
+		return nil, nil
+	}
+
+	if path[0] != '/' {
+		return nil, errors.New("failed to resolve JSON pointer: path must begin with '/'")
+	}
+
+	if path == "/" {
+		return []string{""}, nil
+	}
+
+	hierarchy := strings.Split(path, "/")[1:]
+	for i, v := range hierarchy {
+		hierarchy[i] = r1.Replace(v)
+	}
+
+	return hierarchy, nil
+}
+
+func KeyDelimPathToSlice(path, keyDelim string) []string {
+	hierarchy := strings.Split(path, keyDelim)
+	for i, v := range hierarchy {
+		hierarchy[i] = r2.Replace(v)
+	}
+
+	return hierarchy
+}
+
+var (
 	ErrOutOfBounds = errors.New("out of bounds")
 )
 
@@ -143,28 +183,12 @@ func Find(source any, key string) any {
 	return New(source).Find(key)
 }
 
-// 搜索
-// Search data with key from source
-func (this *Array) Search(path ...string) any {
-	return this.search(this.source, path...)
-}
-
-// 搜索
-// Search data with key from source
-func Search(source any, path ...string) any {
-	return New(source).Search(path...)
-}
-
 // 获取数据
 // get data and return Array
 func (this *Array) Sub(key string) *Array {
-	path := strings.Split(key, this.keyDelim)
-	source := this.search(this.source, path...)
+	path := KeyDelimPathToSlice(key, this.keyDelim)
 
-	return &Array{
-		keyDelim: this.keyDelim,
-		source:   source,
-	}
+	return this.Search(path...)
 }
 
 // 获取数据
@@ -173,11 +197,31 @@ func Sub(source any, key string) *Array {
 	return New(source).Sub(key)
 }
 
+// 搜索
+// Search data with key from source
+func (this *Array) Search(path ...string) *Array {
+	source := this.search(this.source, path...)
+
+	return &Array{
+		keyDelim: this.keyDelim,
+		source:   source,
+	}
+}
+
+// 搜索
+// Search data with key from source
+func Search(source any, path ...string) *Array {
+	return New(source).Search(path...)
+}
+
 // Index attempts to find and return an element
 func (this *Array) Index(index int) *Array {
 	if array, ok := this.Value().([]any); ok {
 		if index >= len(array) {
-			return nil
+			return &Array{
+				keyDelim: this.keyDelim,
+				source:   nil,
+			}
 		}
 
 		source := array[index]
@@ -194,22 +238,26 @@ func (this *Array) Index(index int) *Array {
 		sourceValue = sourceValue.Elem()
 	}
 
-	sourceType := sourceValue.Type()
-
-	if sourceType.Kind() == reflect.Slice {
+	if sourceValue.Kind() == reflect.Slice {
 		if index >= sourceValue.Len() {
-			return nil
+			return &Array{
+				keyDelim: this.keyDelim,
+				source:   nil,
+			}
 		}
 
-		sourceValue.Index(index)
+		source := sourceValue.Index(index).Interface()
 
 		return &Array{
 			keyDelim: this.keyDelim,
-			source:   sourceValue.Interface(),
+			source:   source,
 		}
 	}
 
-	return nil
+	return &Array{
+		keyDelim: this.keyDelim,
+		source:   nil,
+	}
 }
 
 // Children returns a slice of all children of an array element. This also works
@@ -269,7 +317,7 @@ func (this *Array) ChildrenMap() map[string]*Array {
 // 设置数据
 // set data with key
 func (this *Array) SetKey(value any, key string) (*Array, error) {
-	path := strings.Split(key, this.keyDelim)
+	path := KeyDelimPathToSlice(key, this.keyDelim)
 
 	return this.Set(value, formatPath(path)...)
 }
@@ -450,9 +498,7 @@ func (this *Array) SetIndex(value any, index int) (*Array, error) {
 		sourceValue = sourceValue.Elem()
 	}
 
-	sourceType := sourceValue.Type()
-
-	if sourceType.Kind() == reflect.Slice {
+	if sourceValue.Kind() == reflect.Slice {
 		if index >= sourceValue.Len() {
 			return nil, ErrOutOfBounds
 		}
@@ -485,10 +531,16 @@ func (this *Array) ArrayOfSizeIndex(size, index int) (*Array, error) {
 	return this.SetIndex(a, index)
 }
 
+func (this *Array) ArrayOfSizeKey(size int, key string) (*Array, error) {
+	path := KeyDelimPathToSlice(key, this.keyDelim)
+
+	return this.ArrayOfSize(size, formatPath(path)...)
+}
+
 // 删除根据 key
 // delete data with key
 func (this *Array) DeleteKey(key string) error {
-	path := strings.Split(key, this.keyDelim)
+	path := KeyDelimPathToSlice(key, this.keyDelim)
 
 	return this.Delete(formatPath(path)...)
 }
@@ -508,7 +560,7 @@ func (this *Array) Delete(path ...any) error {
 
 	target := toString(path[len(path)-1])
 	if len(path) > 1 {
-		source = this.Search(formatPathString(path[:len(path)-1])...)
+		source = this.Search(formatPathString(path[:len(path)-1])...).Value()
 	}
 
 	if obj, ok := source.(map[string]any); ok {
@@ -519,7 +571,6 @@ func (this *Array) Delete(path ...any) error {
 		delete(obj, target)
 
 		this.Set(obj, path[:len(path)-1]...)
-
 		return nil
 	}
 
@@ -552,14 +603,12 @@ func (this *Array) Delete(path ...any) error {
 		sourceValue = sourceValue.Elem()
 	}
 
-	sourceType := sourceValue.Type()
-
 	var dstValue reflect.Value
 
-	if sourceType.Kind() == reflect.Map {
+	if sourceValue.Kind() == reflect.Map {
 		hasKey := false
 
-		dstValue = reflect.MakeMap(sourceType)
+		dstValue = reflect.MakeMap(sourceValue.Type())
 
 		iter := sourceValue.MapRange()
 		for iter.Next() {
@@ -577,12 +626,11 @@ func (this *Array) Delete(path ...any) error {
 		}
 
 		this.Set(dstValue.Interface(), path[:len(path)-1]...)
-
 		return nil
 	}
 
-	if sourceType.Kind() == reflect.Slice {
-		dstValue = reflect.MakeSlice(sourceType, len(path)-1, len(path)-1)
+	if sourceValue.Kind() == reflect.Slice {
+		dstValue = reflect.MakeSlice(sourceValue.Type(), len(path)-1, len(path)-1)
 
 		if len(path) < 2 {
 			return errors.New("unable to delete array index at root of path")
@@ -603,7 +651,6 @@ func (this *Array) Delete(path ...any) error {
 		dstValue = reflect.AppendSlice(sourceValue.Slice(0, index), sourceValue.Slice(index+1, sourceValue.Len()))
 
 		this.Set(dstValue.Interface(), path[:len(path)-1]...)
-
 		return nil
 	}
 

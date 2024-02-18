@@ -25,6 +25,11 @@ var (
 				"ddddd",
 				"fffff",
 			},
+			"ddd": []int64{
+				22,
+				333,
+				555,
+			},
 			"ff": map[any]any{
 				111: "fccccc",
 				222: "fddddd",
@@ -237,12 +242,6 @@ func Test_Get(t *testing.T) {
 			"222555",
 			"default",
 		},
-		{
-			"b.hhTy3.666.65555",
-			"",
-			"",
-			"nil",
-		},
 	}
 
 	for _, v := range testData {
@@ -251,6 +250,8 @@ func Test_Get(t *testing.T) {
 		assert(check, v.expected, v.msg)
 	}
 
+	check2 := New(arrData).Get("b.hhTy3.666.65555")
+	assert(check2, "", "nil")
 }
 
 func Test_Get_func(t *testing.T) {
@@ -451,7 +452,7 @@ func Test_Search(t *testing.T) {
 	}
 
 	for _, v := range testData {
-		check := New(arrData).Search(strings.Split(v.key, ".")...)
+		check := New(arrData).Search(strings.Split(v.key, ".")...).Value()
 
 		assert(check, v.expected, v.msg)
 	}
@@ -499,7 +500,7 @@ func Test_Search_func(t *testing.T) {
 	}
 
 	for _, v := range testData {
-		check := Search(arrData, strings.Split(v.key, ".")...)
+		check := Search(arrData, strings.Split(v.key, ".")...).Value()
 
 		assert(check, v.expected, v.msg)
 	}
@@ -658,7 +659,7 @@ func Test_Sub_And_ToJSON(t *testing.T) {
 			"&map[int]any",
 		},
 		{
-			"b.d222",
+			"b.hhTy3",
 			`null`,
 			"null",
 		},
@@ -807,6 +808,20 @@ func Test_Flatten(t *testing.T) {
 	}
 
 	assert(flattenData, check, "Flatten fail")
+
+	// =====
+
+	flattenData2, err := json1.Sub("foo").Flatten()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	check2 := map[string]any{
+		"0.bar": "1",
+		"1.bar": "2",
+	}
+
+	assert(flattenData2, check2, "Flatten 2 fail")
 }
 
 func Test_FlattenIncludeEmpty(t *testing.T) {
@@ -998,6 +1013,67 @@ func Test_ArraysTwo(t *testing.T) {
 	}
 }
 
+func Test_ArraysThree(t *testing.T) {
+	json1 := New(nil)
+
+	test, err := json1.ArrayOfSizeKey(1, "test1.test2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.SetIndex(10, 0)
+	if val := json1.Sub("test1.test2").Index(0).Value().(int); val != 10 {
+		t.Error(err)
+	}
+
+	// ========
+
+	obj2 := New(arrData)
+	if val := obj2.Sub("b.ddd").Index(0).Value().(int64); val != int64(22) {
+		t.Error(err)
+	}
+
+	oo := obj2.Sub("b.ddd")
+
+	oo, err = oo.SetIndex(1000, 2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if val := oo.Index(2).Value().(int64); val != 1000 {
+		t.Error(err)
+	}
+}
+
+func Test_BadIndexes(t *testing.T) {
+	jsonObj, err := ParseJSON([]byte(`{"array":[1,2,3]}`))
+	if err != nil {
+		t.Error(err)
+	}
+
+	if act := jsonObj.Index(0).Value(); act != nil {
+		t.Errorf("Unexpected value returned: %v != %v", nil, act)
+	}
+
+	if act := jsonObj.Sub("array").Index(4).Value(); act != nil {
+		t.Errorf("Unexpected value returned: %v != %v", nil, act)
+	}
+
+	// ========
+
+	obj2 := New(arrData)
+	if act := obj2.Sub("b.ddd").Index(4).Value(); act != nil {
+		t.Errorf("Unexpected value returned: %v != %v", nil, act)
+	}
+
+	oo := obj2.Sub("b.ddd")
+
+	_, err = oo.SetIndex(1000, 4)
+	if err != ErrOutOfBounds {
+		t.Error("SetIndex error need ErrOutOfBounds")
+	}
+}
+
 func Test_Deletes(t *testing.T) {
 	jsonParsed, _ := ParseJSON([]byte(`{
 		"outter":{
@@ -1042,6 +1118,10 @@ func Test_Deletes(t *testing.T) {
 	}
 	if err := jsonParsed.Delete("outter.another.value4"); err == nil {
 		t.Error("value4 should not have been found in outter.another")
+	}
+
+	if err := jsonParsed.Delete(); err == nil {
+		t.Error("value should not have been found in null")
 	}
 
 	expected := `{"outter":{"alsoInner":{"value2":42,"value3":92},"another":{"value3":null},"inner":{"value1":10,"value3":32}}}`
@@ -1220,6 +1300,54 @@ func Test_BasicWithDecoder(t *testing.T) {
 
 	checkNumber("test.int", "10")
 	checkNumber("test.float", "6.66")
+}
+
+func Test_isPathShadowedInDeepMap(t *testing.T) {
+	assert := assertT(t)
+
+	testData := []struct {
+		key      string
+		expected string
+		msg      string
+	}{
+		{
+			"a",
+			"",
+			"map[string]any",
+		},
+		{
+			"b.dd.1",
+			"b.dd",
+			"[]any",
+		},
+		{
+			"b.ff",
+			"",
+			"map[any]any",
+		},
+		{
+			"b.hhTy3.222",
+			"b.hhTy3",
+			"&map[int]any",
+		},
+		{
+			"b.hhTy3.333.qq2",
+			"b.hhTy3",
+			"map[any]string",
+		},
+		{
+			"b.hhTy3.666.3",
+			"b.hhTy3",
+			"Slice",
+		},
+	}
+
+	for _, v := range testData {
+		check := New(nil).isPathShadowedInDeepMap(strings.Split(v.key, "."), arrData)
+
+		assert(check, v.expected, v.msg)
+	}
+
 }
 
 func Example() {
