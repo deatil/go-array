@@ -183,6 +183,21 @@ func Find(source any, key string) any {
 	return New(source).Find(key)
 }
 
+func (this *Array) JSONPointer(path string) (*Array, error) {
+	paths, err := JSONPointerToSlice(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return this.Search(paths...), nil
+}
+
+// 获取数据
+// get data and return Array
+func JSONPointer(source any, path string) (*Array, error) {
+	return New(source).JSONPointer(path)
+}
+
 // 获取数据
 // get data and return Array
 func (this *Array) Sub(key string) *Array {
@@ -391,15 +406,15 @@ func (this *Array) Set(value any, path ...any) (*Array, error) {
 				sourceValue = sourceValue.Elem()
 			}
 
-			sourceType := sourceValue.Type()
-
-			pathSegValue, ok := this.convertTo(sourceType.Key(), path[target])
-			if !ok {
-				return nil, fmt.Errorf("convert failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
-			}
-
 			switch {
-			case sourceType.Kind() == reflect.Map:
+			case sourceValue.Kind() == reflect.Map:
+    			sourceType := sourceValue.Type()
+
+    			pathSegValue, ok := this.convertTo(sourceType.Key(), path[target])
+    			if !ok {
+    				return nil, fmt.Errorf("convert failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+    			}
+
 				if target == len(path)-1 {
 					valueValue, ok := this.convertTo(sourceType.Elem(), value)
 					if !ok {
@@ -416,7 +431,7 @@ func (this *Array) Set(value any, path ...any) (*Array, error) {
 
 					source = valueValue.Interface()
 				}
-			case sourceType.Kind() == reflect.Slice:
+			case sourceValue.Kind() == reflect.Slice:
 				if pathSeg == "-" {
 					if target < 1 {
 						return nil, errors.New("unable to append new array index at root of path")
@@ -428,7 +443,7 @@ func (this *Array) Set(value any, path ...any) (*Array, error) {
 						source = map[string]any{}
 					}
 
-					valueValue, ok := this.convertTo(sourceType.Elem(), source)
+					valueValue, ok := this.convertTo(sourceValue.Type().Elem(), source)
 					if !ok {
 						return nil, fmt.Errorf("slice failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
 					}

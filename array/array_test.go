@@ -843,6 +843,43 @@ func Test_FlattenIncludeEmpty(t *testing.T) {
 	assert(flattenData, check, "FlattenIncludeEmpty fail")
 }
 
+func Test_JSONPointer(t *testing.T) {
+	assert := assertT(t)
+
+	json1, _ := ParseJSON([]byte(`{"foo":[{"bar":"1"},{"bar":"2"}]}`))
+
+	testData := []struct {
+		key      string
+		expected string
+		msg      string
+	}{
+		{
+			"/foo/0",
+			`{"bar":"1"}`,
+			"map[string]any",
+		},
+		{
+			"/foo",
+			`[{"bar":"1"},{"bar":"2"}]`,
+			"[]any",
+		},
+		{
+			"/foo/1",
+			`{"bar":"2"}`,
+			"map[string]any",
+		},
+	}
+
+	for _, v := range testData {
+		check, err := json1.JSONPointer(v.key)
+        if err != nil {
+            t.Fatal(err)
+        }
+
+		assert(check.String(), v.expected, v.msg)
+	}
+}
+
 func Test_Set(t *testing.T) {
 	gObj := New(nil)
 
@@ -869,6 +906,84 @@ func Test_Set(t *testing.T) {
 	if act := gObj.String(); act != exp {
 		t.Errorf("Unexpected value: %v != %v", act, exp)
 	}
+
+    // ========
+
+	arrData2 := map[string]any{
+		"a": 123,
+		"b": map[string]any{
+			"c": "ccc",
+			"d": map[string]any{
+				"e": "eee",
+				"f": map[string]any{
+					"g": "ggg",
+				},
+			},
+			"dd": []any{
+				"ccccc",
+				"ddddd",
+				"fffff",
+			},
+			"ddd": []int64{
+				22,
+				333,
+				555,
+			},
+			"ff": map[any]any{
+				111: "fccccc",
+				222: "fddddd",
+				333: "dfffff",
+			},
+			"hhTy3": &map[int]any{
+				111: "hccccc",
+				222: "hddddd",
+				333: map[any]string{
+					"qq1": "qq1ccccc",
+					"qq2": "qq2ddddd",
+					"qq3": "qq3fffff",
+				},
+				666: []float64{
+					12.3,
+					32.5,
+					22.56,
+					789.156,
+				},
+			},
+			"kJh21ay": map[string]any{
+				"Hjk2": "fccDcc",
+				"23rt": "^hgcF5c",
+				"23rt5": []any{
+					"adfa",
+					1231,
+				},
+			},
+		},
+	}
+
+	gObj2 := New(arrData2)
+	if _, err := gObj2.Set(5, "b", "ff", 555); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gObj2.Set("qqqqqqqqw", "b", "dd", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gObj2.Set(float64(222.9999), "b", "hhTy3", int(666), 2); err != nil {
+		t.Fatal(err)
+	}
+
+	exp2 := `{"111":"fccccc","222":"fddddd","333":"dfffff","555":5}`
+	if act := gObj2.Sub("b.ff").String(); act != exp2 {
+		t.Errorf("Unexpected value: %v != %v", act, exp2)
+	}
+	exp3 := `["ccccc","ddddd","fffff","qqqqqqqqw"]`
+	if act := gObj2.Sub("b.dd").String(); act != exp3 {
+		t.Errorf("Unexpected value: %v != %v", act, exp3)
+	}
+	exp5 := `[12.3,32.5,222.9999,789.156]`
+	if act := gObj2.Sub("b.hhTy3.666").String(); act != exp5 {
+		t.Errorf("Unexpected value: %v != %v", act, exp5)
+	}
+
 }
 
 func Test_SetMap(t *testing.T) {
