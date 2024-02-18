@@ -408,12 +408,12 @@ func (this *Array) Set(value any, path ...any) (*Array, error) {
 
 			switch {
 			case sourceValue.Kind() == reflect.Map:
-    			sourceType := sourceValue.Type()
+				sourceType := sourceValue.Type()
 
-    			pathSegValue, ok := this.convertTo(sourceType.Key(), path[target])
-    			if !ok {
-    				return nil, fmt.Errorf("convert failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
-    			}
+				pathSegValue, ok := this.convertTo(sourceType.Key(), path[target])
+				if !ok {
+					return nil, fmt.Errorf("convert failed to resolve path segment '%v': field '%v' was error", target, pathSeg)
+				}
 
 				if target == len(path)-1 {
 					valueValue, ok := this.convertTo(sourceType.Elem(), value)

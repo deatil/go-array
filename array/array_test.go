@@ -50,10 +50,24 @@ var (
 					789.156,
 				},
 			},
+			"hhTy66": &map[int]any{
+				777: &[]float64{
+					12.3,
+					32.5,
+					22.56,
+					789.156,
+				},
+			},
 			"kJh21ay": map[string]any{
 				"Hjk2": "fccDcc",
 				"23rt": "^hgcF5c",
 				"23rt5": []any{
+					"adfa",
+					1231,
+				},
+			},
+			"kJh21ay22": map[int64]any{
+				33: []any{
 					"adfa",
 					1231,
 				},
@@ -846,7 +860,9 @@ func Test_FlattenIncludeEmpty(t *testing.T) {
 func Test_JSONPointer(t *testing.T) {
 	assert := assertT(t)
 
-	json1, _ := ParseJSON([]byte(`{"foo":[{"bar":"1"},{"bar":"2"}]}`))
+	data := []byte(`{"foo":[{"bar":"1"},{"bar":"2"}]}`)
+
+	json1, _ := ParseJSON(data)
 
 	testData := []struct {
 		key      string
@@ -868,15 +884,42 @@ func Test_JSONPointer(t *testing.T) {
 			`{"bar":"2"}`,
 			"map[string]any",
 		},
+		{
+			"/foo/5",
+			`null`,
+			"not find",
+		},
+		{
+			"/",
+			`null`,
+			"null",
+		},
 	}
 
 	for _, v := range testData {
 		check, err := json1.JSONPointer(v.key)
-        if err != nil {
-            t.Fatal(err)
-        }
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		assert(check.String(), v.expected, v.msg)
+	}
+
+	var dst any
+	json.Unmarshal(data, &dst)
+
+	for _, v := range testData {
+		check, err := JSONPointer(dst, v.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert(check.String(), v.expected, v.msg)
+	}
+
+	_, err := json1.JSONPointer("foo/1")
+	if err == nil {
+		t.Error("value should not have been found in foo")
 	}
 }
 
@@ -907,7 +950,7 @@ func Test_Set(t *testing.T) {
 		t.Errorf("Unexpected value: %v != %v", act, exp)
 	}
 
-    // ========
+	// ========
 
 	arrData2 := map[string]any{
 		"a": 123,
@@ -1021,6 +1064,11 @@ func Test_SetMap(t *testing.T) {
 	_, err = obj2.Set(133.122333, "b", "hhTy3", 666)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	_, err = obj2.Set(133.122333, "b", "kJh21ay22", "ftd")
+	if err == nil {
+		t.Error("Set should error")
 	}
 
 	res2 := fmt.Sprintf("%v", obj2.Sub("b.hhTy3").Value())
@@ -1180,6 +1228,9 @@ func Test_BadIndexes(t *testing.T) {
 	if act := obj2.Sub("b.ddd").Index(4).Value(); act != nil {
 		t.Errorf("Unexpected value returned: %v != %v", nil, act)
 	}
+	if act := obj2.Sub("b.hhTy66.777").Index(4).Value(); act != nil {
+		t.Errorf("Unexpected value returned: %v != %v", nil, act)
+	}
 
 	oo := obj2.Sub("b.ddd")
 
@@ -1284,6 +1335,11 @@ func Test_Deletes(t *testing.T) {
 	expected2 = `[12.3,32.5,789.156]`
 	if actual2 := jsonParsed2.Sub("b.t666").String(); actual2 != expected2 {
 		t.Errorf("Unexpected result from deletes: %v != %v", actual2, expected2)
+	}
+
+	jsonParsed3 := New(nil)
+	if err := jsonParsed3.Delete("b", "ff", 333); err == nil {
+		t.Error("data should return error")
 	}
 }
 
@@ -1415,6 +1471,17 @@ func Test_BasicWithDecoder(t *testing.T) {
 
 	checkNumber("test.int", "10")
 	checkNumber("test.float", "6.66")
+}
+
+func Test_BadWithDecoder(t *testing.T) {
+	sample := []byte(`{"test":{"int":10, "float":6.66}`)
+	dec := json.NewDecoder(bytes.NewReader(sample))
+	dec.UseNumber()
+
+	_, err := ParseJSONDecoder(dec)
+	if err == nil {
+		t.Error("data should not have been found in ParseJSONDecoder")
+	}
 }
 
 func Test_isPathShadowedInDeepMap(t *testing.T) {
