@@ -738,6 +738,44 @@ func Test_Sub_And_ToJSONIndent(t *testing.T) {
 
 }
 
+func Test_Sub_And_MarshalJSON(t *testing.T) {
+	assert := assertT(t)
+
+	testData := []struct {
+		key      string
+		expected string
+		msg      string
+	}{
+		{
+			"b.dd",
+			`["ccccc","ddddd","fffff"]`,
+			"[]any",
+		},
+		{
+			"b.d",
+			`{"e":"eee","f":{"g":"ggg"}}`,
+			"map[any]any",
+		},
+		{
+			"b.hhTy3.333",
+			`{"qq1":"qq1ccccc","qq2":"qq2ddddd","qq3":"qq3fffff"}`,
+			"&map[int]any",
+		},
+		{
+			"b.hhTy3",
+			``,
+			"null",
+		},
+	}
+
+	for _, v := range testData {
+		check, _ := New(arrData).Sub(v.key).MarshalJSON()
+
+		assert(check, v.expected, v.msg)
+	}
+
+}
+
 func Test_Children(t *testing.T) {
 	jsonParsed, _ := ParseJSON([]byte(`{"map":{"objectOne":{"num":1}}, "array":[ "first", "second", "third" ]}`))
 

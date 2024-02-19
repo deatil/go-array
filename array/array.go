@@ -19,6 +19,7 @@ func init() {
 	r2 = strings.NewReplacer("~1", ".", "~0", "~")
 }
 
+// format JSONPointer to Slice
 func JSONPointerToSlice(path string) ([]string, error) {
 	if path == "" {
 		return nil, nil
@@ -40,6 +41,7 @@ func JSONPointerToSlice(path string) ([]string, error) {
 	return hierarchy, nil
 }
 
+// format Path with KeyDelim to Slice
 func KeyDelimPathToSlice(path, keyDelim string) []string {
 	hierarchy := strings.Split(path, keyDelim)
 	for i, v := range hierarchy {
@@ -67,7 +69,7 @@ type Array struct {
 	source any
 }
 
-// 构造函数 / New
+// New Array
 func New(source any) *Array {
 	return &Array{
 		keyDelim: ".",
@@ -75,7 +77,8 @@ func New(source any) *Array {
 	}
 }
 
-// 解析 JSON 数据 / parse json data
+// 解析 JSON 数据
+// parse json data
 func ParseJSON(source []byte) (*Array, error) {
 	var dst any
 	err := json.Unmarshal(source, &dst)
@@ -94,7 +97,7 @@ func ParseJSONDecoder(decoder *json.Decoder) (*Array, error) {
 }
 
 // 设置 keyDelim
-// with keyDelim
+// set keyDelim string
 func (this *Array) WithKeyDelim(data string) *Array {
 	this.keyDelim = data
 
@@ -107,7 +110,7 @@ func (this *Array) String() string {
 }
 
 // 返回数据
-// return source data
+// return the source data
 func (this *Array) Value() any {
 	return this.source
 }
@@ -134,6 +137,12 @@ func (this *Array) ToJSONIndent(prefix, indent string) []byte {
 	return []byte("null")
 }
 
+// 返回 JSON 数据
+// return JSON data
+func (this *Array) MarshalJSON() ([]byte, error) {
+	return json.Marshal(this.anyDataFormat(this.source))
+}
+
 // 判断是否存在
 // if key in source return true or false
 func (this *Array) Exists(key string) bool {
@@ -151,7 +160,7 @@ func Exists(source any, key string) bool {
 }
 
 // 获取数据
-// get key data from source with default value
+// get data with key and can set default value
 func (this *Array) Get(key string, defVal ...any) any {
 	data := this.Find(key)
 	if data != nil {
@@ -166,19 +175,19 @@ func (this *Array) Get(key string, defVal ...any) any {
 }
 
 // 获取数据
-// get key data from source with default value
+// get data with key from source and can set default value
 func Get(source any, key string, defVal ...any) any {
 	return New(source).Get(key, defVal...)
 }
 
 // 查找数据
-// find key data from source
+// find data with key
 func (this *Array) Find(key string) any {
 	return this.Sub(key).Value()
 }
 
 // 查找数据
-// find key data from source
+// find data with key from source
 func Find(source any, key string) any {
 	return New(source).Find(key)
 }
@@ -214,8 +223,8 @@ func Sub(source any, key string) *Array {
 	return New(source).Sub(key)
 }
 
-// 搜索
-// Search data with key from source
+// 搜索数据
+// Search data with key
 func (this *Array) Search(path ...string) *Array {
 	source := this.search(this.source, path...)
 
@@ -225,7 +234,7 @@ func (this *Array) Search(path ...string) *Array {
 	}
 }
 
-// 搜索
+// 搜索数据
 // Search data with key from source
 func Search(source any, path ...string) *Array {
 	return New(source).Search(path...)
@@ -536,18 +545,22 @@ func (this *Array) SetIndex(value any, index int) (*Array, error) {
 	return nil, errors.New("not an array")
 }
 
-// ArrayOfSize creates a new JSON array of a particular size at a path. Returns
+// ArrayOfSize creates a new array of a particular size at a path. Returns
 // an error if the path contains a collision with a non object type.
 func (this *Array) ArrayOfSize(size int, path ...any) (*Array, error) {
 	a := make([]any, size)
 	return this.Set(a, path...)
 }
 
+// ArrayOfSizeIndex creates a new array of a particular size at a index. Returns
+// an error if the path contains a collision with a non object type.
 func (this *Array) ArrayOfSizeIndex(size, index int) (*Array, error) {
 	a := make([]any, size)
 	return this.SetIndex(a, index)
 }
 
+// ArrayOfSizeIndex creates a new array of a particular size at a key. Returns
+// an error if the path contains a collision with a non object type.
 func (this *Array) ArrayOfSizeKey(size int, key string) (*Array, error) {
 	path := KeyDelimPathToSlice(key, this.keyDelim)
 
