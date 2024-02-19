@@ -80,6 +80,87 @@ data := array.Get(arrData, "b.kJh21ay.Hjk23333", "defValString")
 ~~~
 
 
+### 常用示例
+
+* 判断是否存在
+~~~go
+var res bool = array.New(arrData).Exists("b.kJh21ay.Hjk2")
+// output: true
+
+var res bool = array.New(arrData).Exists("b.kJh21ay.Hjk12")
+// output: false
+~~~
+
+* 获取数据
+~~~go
+var res any = array.New(arrData).Get("b.kJh21ay.Hjk2")
+// output: fccDcc
+
+var res any = array.New(arrData).Get("b.kJh21ay.Hjk12", "defVal")
+// output: defVal
+~~~
+
+* 查找数据
+~~~go
+var res any = array.New(arrData).Find("b.kJh21ay.Hjk2")
+// output: fccDcc
+
+var res any = array.New(arrData).Find("b.kJh21ay.Hjk12")
+// output: nil
+~~~
+
+* 用 Sub 获取数据
+~~~go
+var res any = array.New(arrData).Sub("b.kJh21ay.Hjk2").Value()
+// output: fccDcc
+
+var res any = array.New(arrData).Sub("b.kJh21ay.Hjk12").Value()
+// output: nil
+~~~
+
+* 用 Search 获取数据
+~~~go
+var res any = array.New(arrData).Search("b", "kJh21ay", "Hjk2").Value()
+// output: fccDcc
+
+var res any = array.New(arrData).Search("b", "kJh21ay", "Hjk12").Value()
+// output: nil
+~~~
+
+* 用 Index 获取数据
+~~~go
+var res any = array.New(arrData).Sub("b.dd").Index(1).Value()
+// output: ddddd
+
+var res any = array.New(arrData).Sub("b.dd").Index(6).Value()
+// output: nil
+~~~
+
+* 用 Set 设置数据
+~~~go
+arr, err := array.New(arrData).Set("qqqyyy", "b", "ff", 222)
+// arr.Get("b.ff.222") output: qqqyyy
+~~~
+
+* 用 SetIndex 设置数据
+~~~go
+arr, err := array.New(arrData).Sub("b.dd").SetIndex("qqqyyySetIndex", 1)
+// arr.Get("b.dd.1") output: qqqyyySetIndex
+~~~
+
+* 用 Delete 删除数据
+~~~go
+arr, err := array.New(arrData).Delete("b", "hh", 2225)
+// arr.Get("b.hh.2225") output: nil
+~~~
+
+* 用 DeleteKey 删除数据
+~~~go
+arr, err := array.New(arrData).DeleteKey("b.d.e")
+// arr.Get("b.d.e") output: nil
+~~~
+
+
 ### 开源协议
 
 *  本软件包遵循 `Apache2` 开源协议发布，在保留本软件包版权的情况下提供个人及商业免费使用。

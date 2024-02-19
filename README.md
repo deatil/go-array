@@ -80,6 +80,87 @@ data := array.Get(arrData, "b.kJh21ay.Hjk23333", "defValString")
 ~~~
 
 
+### Examples
+
+* Exists data
+~~~go
+var res bool = array.New(arrData).Exists("b.kJh21ay.Hjk2")
+// output: true
+
+var res bool = array.New(arrData).Exists("b.kJh21ay.Hjk12")
+// output: false
+~~~
+
+* Get data
+~~~go
+var res any = array.New(arrData).Get("b.kJh21ay.Hjk2")
+// output: fccDcc
+
+var res any = array.New(arrData).Get("b.kJh21ay.Hjk12", "defVal")
+// output: defVal
+~~~
+
+* Find data
+~~~go
+var res any = array.New(arrData).Find("b.kJh21ay.Hjk2")
+// output: fccDcc
+
+var res any = array.New(arrData).Find("b.kJh21ay.Hjk12")
+// output: nil
+~~~
+
+* Use Sub to Find data
+~~~go
+var res any = array.New(arrData).Sub("b.kJh21ay.Hjk2").Value()
+// output: fccDcc
+
+var res any = array.New(arrData).Sub("b.kJh21ay.Hjk12").Value()
+// output: nil
+~~~
+
+* Use Search to Find data
+~~~go
+var res any = array.New(arrData).Search("b", "kJh21ay", "Hjk2").Value()
+// output: fccDcc
+
+var res any = array.New(arrData).Search("b", "kJh21ay", "Hjk12").Value()
+// output: nil
+~~~
+
+* Use Index to Find data
+~~~go
+var res any = array.New(arrData).Sub("b.dd").Index(1).Value()
+// output: ddddd
+
+var res any = array.New(arrData).Sub("b.dd").Index(6).Value()
+// output: nil
+~~~
+
+* Use Set to set data
+~~~go
+arr, err := array.New(arrData).Set("qqqyyy", "b", "ff", 222)
+// arr.Get("b.ff.222") output: qqqyyy
+~~~
+
+* Use SetIndex to set data
+~~~go
+arr, err := array.New(arrData).Sub("b.dd").SetIndex("qqqyyySetIndex", 1)
+// arr.Get("b.dd.1") output: qqqyyySetIndex
+~~~
+
+* Use Delete to delete data
+~~~go
+arr, err := array.New(arrData).Delete("b", "hh", 2225)
+// arr.Get("b.hh.2225") output: nil
+~~~
+
+* Use DeleteKey to delete data
+~~~go
+arr, err := array.New(arrData).DeleteKey("b.d.e")
+// arr.Get("b.d.e") output: nil
+~~~
+
+
 ### LICENSE
 
 *  The library LICENSE is `Apache2`, using the library need keep the LICENSE.

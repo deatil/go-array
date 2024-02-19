@@ -1532,6 +1532,147 @@ func Test_isPathShadowedInDeepMap(t *testing.T) {
 
 }
 
+func Test_Example(t *testing.T) {
+	assert := assertDeepEqualT(t)
+
+	arrData := map[string]any{
+		"a": 123,
+		"b": map[string]any{
+			"c": "ccc",
+			"d": map[string]any{
+				"e": "eee",
+				"f": map[string]any{
+					"g": "ggg",
+				},
+			},
+			"dd": []any{
+				"ccccc",
+				"ddddd",
+				"fffff",
+			},
+			"ff": map[any]any{
+				111: "fccccc",
+				222: "fddddd",
+				333: "dfffff",
+			},
+			"hh": map[int]any{
+				1115: "hccccc",
+				2225: "hddddd",
+				3335: map[any]string{
+					"qq1": "qq1ccccc",
+					"qq2": "qq2ddddd",
+					"qq3": "qq3fffff",
+				},
+			},
+			"kJh21ay": map[string]any{
+				"Hjk2": "fccDcc",
+				"23rt": "^hgcF5c",
+			},
+		},
+	}
+
+	{
+		var res bool = New(arrData).Exists("b.kJh21ay.Hjk2")
+		assert(true, res, "Exists")
+	}
+	{
+		var res bool = New(arrData).Exists("b.kJh21ay.Hjk12")
+		assert(false, res, "Exists")
+	}
+
+	{
+		var res any = New(arrData).Get("b.kJh21ay.Hjk2")
+		assert("fccDcc", res, "Get")
+	}
+	{
+		var res any = New(arrData).Get("b.kJh21ay.Hjk12", "defVal")
+		assert("defVal", res, "Get")
+	}
+
+	{
+		var res any = New(arrData).Find("b.kJh21ay.Hjk2")
+		assert("fccDcc", res, "Find")
+	}
+	{
+		var res any = New(arrData).Find("b.kJh21ay.Hjk12")
+		assert(nil, res, "Find")
+	}
+
+	{
+		var res any = New(arrData).Sub("b.kJh21ay.Hjk2").Value()
+		assert("fccDcc", res, "Sub")
+	}
+	{
+		var res any = New(arrData).Sub("b.kJh21ay.Hjk12").Value()
+		assert(nil, res, "Sub")
+	}
+
+	{
+		var res any = New(arrData).Search("b", "kJh21ay", "Hjk2").Value()
+		assert("fccDcc", res, "Search")
+	}
+	{
+		var res any = New(arrData).Search("b", "kJh21ay", "Hjk12").Value()
+		assert(nil, res, "Search")
+	}
+
+	{
+		var res any = New(arrData).Sub("b.dd").Index(1).Value()
+		assert("ddddd", res, "Index")
+	}
+	{
+		var res any = New(arrData).Sub("b.dd").Index(6).Value()
+		assert(nil, res, "Index")
+	}
+
+	{
+		arr := New(arrData)
+		arr.Set("qqqyyy", "b", "ff", 222)
+
+		var res any = arr.Sub("b.ff.222").Value()
+		assert("qqqyyy", res, "Set")
+	}
+
+	{
+		arr := New(arrData)
+		arr.Sub("b.dd").SetIndex("qqqyyySetIndex", 1)
+
+		var res any = arr.Sub("b.dd.1").Value()
+		assert("qqqyyySetIndex", res, "SetIndex")
+	}
+
+	{
+		arr := New(arrData)
+
+		var res0 any = arr.Sub("b.hh.2225").Value()
+		assert("hddddd", res0, "Delete")
+
+		err := arr.Delete("b", "hh", 2225)
+		if err != nil {
+			t.Error(err.Error())
+		}
+
+		var res any = arr.Sub("b.hh.2225").Value()
+		assert(nil, res, "Delete")
+	}
+
+	{
+		arr := New(arrData)
+
+		var res0 any = arr.Sub("b.d.e").Value()
+		assert("eee", res0, "DeleteKey")
+
+		err := arr.DeleteKey("b.d.e")
+		if err != nil {
+			t.Error(err.Error())
+		}
+
+		var res any = arr.Sub("b.d.e").Value()
+		assert(nil, res, "DeleteKey")
+	}
+
+}
+
 func Example() {
 	Get(arrData, "b.hhTy3.666.3")
 }

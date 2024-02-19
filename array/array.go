@@ -150,7 +150,7 @@ func Exists(source any, key string) bool {
 	return New(source).Exists(key)
 }
 
-// 获取
+// 获取数据
 // get key data from source with default value
 func (this *Array) Get(key string, defVal ...any) any {
 	data := this.Find(key)
@@ -165,24 +165,26 @@ func (this *Array) Get(key string, defVal ...any) any {
 	return nil
 }
 
-// 获取
+// 获取数据
 // get key data from source with default value
 func Get(source any, key string, defVal ...any) any {
 	return New(source).Get(key, defVal...)
 }
 
-// 查找
+// 查找数据
 // find key data from source
 func (this *Array) Find(key string) any {
 	return this.Sub(key).Value()
 }
 
-// 查找
+// 查找数据
 // find key data from source
 func Find(source any, key string) any {
 	return New(source).Find(key)
 }
 
+// 获取数据
+// get data and return Array
 func (this *Array) JSONPointer(path string) (*Array, error) {
 	paths, err := JSONPointerToSlice(path)
 	if err != nil {
