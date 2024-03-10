@@ -8,9 +8,9 @@
 
 <p align="center">
 A Go package that read or set data from map, slice or json
+</p>
 
 [中文](README_CN.md) | English
-</p>
 
 
 ### Download

@@ -7,10 +7,10 @@
 </p>
 
 <p align="center">
-go-array 可以快速的从 `map`, `slice` 及 `json` 中获取数据或者设置数据
+go-array 可以快速的从 map, slice 及 json 中获取数据或者设置数据
+</p>
 
 中文 | [English](README.md)
-</p>
 
 
 ### 下载安装
